@@ -2,7 +2,7 @@
 *.iml
 *.jar
 *.xar
-*.tmpl
 expath-pkg.xml
+exist.xml
 local.build.properties
 build/
