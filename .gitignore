@@ -1,6 +1,8 @@
 *.class
-
-# Package Files #
+*.iml
 *.jar
-*.war
-*.ear
+*.xar
+*.tmpl
+expath-pkg.xml
+local.build.properties
+build/
