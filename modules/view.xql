@@ -5,7 +5,7 @@
  :)
 xquery version "3.0";
 
-import module namespace exist="http://exist.sourceforge.net/NS/exist";
+declare namespace exist="http://exist.sourceforge.net/NS/exist";
 import module namespace request="http://exist-db.org/xquery/request";
 import module namespace templates="http://exist-db.org/xquery/templates";
 
