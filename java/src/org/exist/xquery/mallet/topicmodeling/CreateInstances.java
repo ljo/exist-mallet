@@ -49,36 +49,36 @@ public class CreateInstances extends BasicFunction {
     public final static FunctionSignature signatures[] = {
         new FunctionSignature(
                               new QName("create-instances-string", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes the provided text strings and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              "Processes the provided text strings and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The path within the database to where to store the serialized instances."),
+                                                                    "The path within the database to where to store the serialized instances document"),
                                   new FunctionParameterSequenceType("text", Type.STRING, Cardinality.ONE_OR_MORE,
-                                                                    "The string(s) of text to create the instances out of.")
+                                                                    "The string(s) of text to create the instances out of")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
-                                                             "The path to the stored instances document  if successfully stored, otherwise the empty sequence.")
+                                                             "The path to the stored instances document if successfully stored, otherwise the empty sequence")
                               ),
         new FunctionSignature(
                               new QName("create-instances-node", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes the provided nodes and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              "Processes the provided nodes and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The path within the database to where to store the serialized instances."),
+                                                                    "The path within the database to where to store the serialized instances document"),
                                   new FunctionParameterSequenceType("node", Type.NODE, Cardinality.ONE_OR_MORE,
-                                                                    "The node(s) to create the instances out of.")
+                                                                    "The node(s) to create the instances out of")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
-                                                             "The path to the stored instances document if successfully stored, otherwise the empty sequence.")
+                                                             "The path to the stored instances document if successfully stored, otherwise the empty sequence")
                               ),
         new FunctionSignature(
                               new QName("create-instances-collection", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes resources in the provided collection hierachy and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              "Processes resources in the provided collection hierarchy and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The path within the database to where to store the serialized instances."),
+                                                                    "The path within the database to where to store the serialized instances document"),
                                   new FunctionParameterSequenceType("collection-uri", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The collection hierachy to create the instances out of.")
+                                                                    "The collection hierarchy to create the instances out of")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
                                                              "The path to the stored instances document if successfully stored, otherwise the empty sequence.")      
@@ -104,13 +104,9 @@ public class CreateInstances extends BasicFunction {
 
         context.pushDocumentContext();
 
-		if (args[0].isEmpty() || args[1].isEmpty()) {
-			return Sequence.EMPTY_SEQUENCE;
-		}
         try {
             if (isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) {
-                String text = args[1].getStringValue();
-                createInstances(createPipe(tokenRegex), new String[] {text});
+                createInstances(createPipe(tokenRegex), getParameterValues(args[1]).toArray(new String[0]));
             } else {
                 createInstancesCollection(createPipe(tokenRegex), args[1].getStringValue());
             }
@@ -166,8 +162,8 @@ public class CreateInstances extends BasicFunction {
     private void createInstances(Pipe pipe, String[] texts) throws XPathException {
         // The third argument is a Pattern that is applied to produce a class label.
         // In this case it could be the last collection name in the path.
-        
-        String target = "collection-name"; 
+                    
+        String target = "manual-selection"; 
         ArrayIterator iterator =
             new ArrayIterator(texts, target);
         
@@ -295,5 +291,14 @@ public class CreateInstances extends BasicFunction {
             txnManager.close(txn);
             brokerPool.release(broker);
             }
+    }
+
+    public static List<String> getParameterValues(Sequence parameter) throws XPathException {
+        final List<String> args = new ArrayList<String>();
+            for (final SequenceIterator j = parameter.iterate(); j.hasNext();) {
+                final Item next = j.nextItem();
+                args.add(next.getStringValue());
+            }
+        return args;
     }
 }

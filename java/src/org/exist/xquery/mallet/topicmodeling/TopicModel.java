@@ -56,49 +56,49 @@ public class TopicModel extends BasicFunction {
                               "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top topics. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The path within the database to the serialized instances to use.")
+                                                                    "The path within the database to the serialized instances document to use")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-topics-to-show top ranked topics.")
+                                                             "The $number-of-topics-to-show top ranked topics")
                               ),
         new FunctionSignature(
                               new QName("topic-model-sample", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
                               "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top raked topics. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The path within the database to the serialized instances to use."),
+                                                                    "The path within the database to the serialized instances document to use"),
                                   new FunctionParameterSequenceType("number-of-topics-to-show", Type.INTEGER, Cardinality.EXACTLY_ONE,
-                                                                    "The number of top ranked topics to show."),
+                                                                    "The number of top ranked topics to show"),
                                   new FunctionParameterSequenceType("language", Type.STRING, Cardinality.ZERO_OR_ONE,
-                                                                    "The lowercase two-letter ISO-639 code.")
+                                                                    "The lowercase two-letter ISO-639 code")
 
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-topics-to-show top ranked topics.")
+                                                             "The $number-of-topics-to-show top ranked topics")
                               ),
         new FunctionSignature(
                               new QName("topic-model", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
                               "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked topics.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The path within the database to the serialized instances to use."),
+                                                                    "The path within the database to the serialized instances document to use"),
                                   new FunctionParameterSequenceType("number-of-topics-to-show", Type.INTEGER, Cardinality.EXACTLY_ONE,
-                                                                    "The number of top ranked topics to show."),
+                                                                    "The number of top ranked topics to show"),
                                   new FunctionParameterSequenceType("number-of-topics", Type.INTEGER, Cardinality.EXACTLY_ONE,
-                                                                    "The number of topics to create."),
+                                                                    "The number of topics to create"),
                                   new FunctionParameterSequenceType("number-of-iterations", Type.INTEGER, Cardinality.ZERO_OR_ONE,
-                                                                    "The number of iterations to run."),
-                                  new FunctionParameterSequenceType("number-of-threads", Type.INTEGER, Cardinality.EXACTLY_ONE,
-                                                                    "The number of threads to use."),
+                                                                    "The number of iterations to run"),
+                                  new FunctionParameterSequenceType("number-of-threads", Type.INTEGER, Cardinality.ZERO_OR_ONE,
+                                                                    "The number of threads to use"),
                                   new FunctionParameterSequenceType("alpha_t", Type.DOUBLE, Cardinality.ZERO_OR_ONE,
-                                                                    "The value for the Dirichlet alpha_t parameter."),
+                                                                    "The value for the Dirichlet alpha_t parameter"),
                                   new FunctionParameterSequenceType("beta_w", Type.DOUBLE, Cardinality.ZERO_OR_ONE,
-                                                                    "The value for the Prior beta_w parameter."),
+                                                                    "The value for the Prior beta_w parameter"),
                                   new FunctionParameterSequenceType("language", Type.STRING, Cardinality.ZERO_OR_ONE,
-                                                                    "The lowercase two-letter ISO-639 code.")
+                                                                    "The lowercase two-letter ISO-639 code")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-topics-to-show top ranked topics.")
+                                                             "The $number-of-topics-to-show top ranked topics")
                               )
     };
 
@@ -171,16 +171,24 @@ public class TopicModel extends BasicFunction {
             } catch (IOException e) {
                 throw new XPathException(this, "Error while reading instances resource: " + e.getMessage(), e);
             }                
-            // Show the words and topics in the first instance
+            
             // The data alphabet maps word IDs to strings
             Alphabet dataAlphabet = instances.getDataAlphabet();
+
+            ValueSequence result = new ValueSequence();
+
+            // Make wordlists and topics for all instances individually. And/or all together?
+            for (int i = 0; i < model.getData().size(); i++) {
+                FeatureSequence tokens = (FeatureSequence) model.getData().get(i).instance.getData();
+                Formatter out1 = new Formatter(new StringBuilder(), locale);
             
-            FeatureSequence tokens = (FeatureSequence) model.getData().get(0).instance.getData();
-            LabelSequence topics = model.getData().get(0).topicSequence;
-            Formatter out1 = new Formatter(new StringBuilder(), locale);
-            for (int position = 0; position < tokens.getLength(); position++) {
-                out1.format("%s - %d\n", dataAlphabet.lookupObject(tokens.getIndexAtPosition(position)), topics.getIndexAtPosition(position));
+                LabelSequence topics = model.getData().get(i).topicSequence;
+                for (int position = 0; position < tokens.getLength(); position++) {
+                    out1.format("%s - %d\n", dataAlphabet.lookupObject(tokens.getIndexAtPosition(position)), topics.getIndexAtPosition(position));
+                }
+                result.add(new StringValue(out1.toString()));
             }
+            
             // Estimate the topic distribution of the first instance, 
             //  given the current Gibbs state.
             LOG.info("Estimating topic distribution.");
@@ -222,8 +230,8 @@ public class TopicModel extends BasicFunction {
             double[] testProbabilities = inferencer.getSampledDistribution(testing.get(0), 10, 1, 5);
             out.format("0\t%.3f", testProbabilities[0]);
             */
-            ValueSequence result = new ValueSequence();
-            result.add(new StringValue(out1.toString()));
+
+
             result.add(new StringValue(out2.toString()));
 
             return result;
