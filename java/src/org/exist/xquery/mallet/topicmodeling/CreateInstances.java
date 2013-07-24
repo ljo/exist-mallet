@@ -18,7 +18,12 @@ import cc.mallet.types.InstanceList;
 
 import org.exist.collections.Collection;
 import org.exist.dom.BinaryDocument;
+import org.exist.dom.DefaultDocumentSet;
 import org.exist.dom.DocumentImpl;
+import org.exist.dom.DocumentSet;
+import org.exist.dom.MutableDocumentSet;
+import org.exist.dom.NodeProxy;
+import org.exist.dom.NodeSet;
 import org.exist.dom.QName;
 import org.exist.security.PermissionDeniedException;
 import org.exist.storage.BrokerPool;
@@ -26,6 +31,7 @@ import org.exist.storage.DBBroker;
 import org.exist.storage.lock.Lock;
 import org.exist.storage.txn.TransactionManager;
 import org.exist.storage.txn.Txn;
+import org.exist.util.LockException;
 import org.exist.util.MimeType;
 import org.exist.util.VirtualTempFile;
 import org.exist.xmldb.XmldbURI;
@@ -43,7 +49,7 @@ public class CreateInstances extends BasicFunction {
     public final static FunctionSignature signatures[] = {
         new FunctionSignature(
                               new QName("create-instances-string", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes the provided text strings and creates serialized instances which can be used by neraly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              "Processes the provided text strings and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to where to store the serialized instances."),
@@ -55,7 +61,7 @@ public class CreateInstances extends BasicFunction {
                               ),
         new FunctionSignature(
                               new QName("create-instances-node", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes the provided nodes and creates serialized instances which can be used by neraly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              "Processes the provided nodes and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to where to store the serialized instances."),
@@ -67,11 +73,11 @@ public class CreateInstances extends BasicFunction {
                               ),
         new FunctionSignature(
                               new QName("create-instances-collection", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes resources in the provided collection hierachy and creates serialized instances which can be used by neraly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              "Processes resources in the provided collection hierachy and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to where to store the serialized instances."),
-                                  new FunctionParameterSequenceType("node", Type.NODE, Cardinality.EXACTLY_ONE,
+                                  new FunctionParameterSequenceType("collection-uri", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The collection hierachy to create the instances out of.")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
@@ -98,24 +104,22 @@ public class CreateInstances extends BasicFunction {
 
         context.pushDocumentContext();
 
+		if (args[0].isEmpty() || args[1].isEmpty()) {
+			return Sequence.EMPTY_SEQUENCE;
+		}
         try {
-            if (isCalledAs("create-instances-string")) {
+            if (isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) {
                 String text = args[1].getStringValue();
                 createInstances(createPipe(tokenRegex), new String[] {text});
-                if (doc == null) {
-                    return Sequence.EMPTY_SEQUENCE;
-                } else {
-                    return new StringValue(instancesPath);
-                }
             } else {
-                NodeValue nodeValue = (NodeValue) args[1].itemAt(0);
-                createInstances(createPipe(tokenRegex), new NodeValue[] {nodeValue});
-                if (doc == null) {
-                    return Sequence.EMPTY_SEQUENCE;
-                } else {
-                return new StringValue(instancesPath);
-                }
+                createInstancesCollection(createPipe(tokenRegex), args[1].getStringValue());
             }
+            if (doc == null) {
+                return Sequence.EMPTY_SEQUENCE;
+            } else {
+                return new StringValue(instancesPath);
+            }
+            
         } catch (IllegalArgumentException ex) {
             String errorMessage = String.format("Unable to convert to instances. %s", ex.getMessage());
             LOG.error(errorMessage, ex);
@@ -177,12 +181,58 @@ public class CreateInstances extends BasicFunction {
         storeInstances(instances);
     }
 
-    private void createInstances(Pipe pipe, NodeValue[] nodeValues)  throws XPathException {
+    private void createInstancesCollection(Pipe pipe, String collection)  throws XPathException {
+        DocumentSet docs = null;
+        XmldbURI uri = null;
+        try {
+            MutableDocumentSet ndocs = new DefaultDocumentSet();
+            uri = new AnyURIValue(collection).toXmldbURI();
+            final Collection coll = context.getBroker().getCollection(uri);
+            if (coll == null) {
+                if (context.isRaiseErrorOnFailedRetrieval()) {
+                    throw new XPathException("FODC0002: can not access collection '" + uri + "'");
+                }
+            } else {
+                if (context.inProtectedMode())
+                    {context.getProtectedDocs().getDocsByCollection(coll, true, ndocs);}
+                else
+                    {coll.allDocs(context.getBroker(), ndocs,
+                                  true, context.getProtectedDocs());}
+            }
+            docs = ndocs;
+        } catch (final XPathException e) { //From AnyURIValue constructor
+            e.setLocation(line, column);
+            throw new XPathException("FODC0002: " + e.getMessage());
+        } catch(final PermissionDeniedException pde) {
+            throw new XPathException("FODC0002: can not access collection '" + pde.getMessage() + "'");   
+        }
+        // iterate through all docs and create the node set
+        final ArrayList<String> result = new ArrayList<String>(docs.getDocumentCount());
+        Lock dlock;
+        DocumentImpl doc;
+        for (final Iterator<DocumentImpl> i = docs.getDocumentIterator(); i.hasNext();) {
+            doc = i.next();
+            dlock = doc.getUpdateLock();
+            boolean lockAcquired = false;
+            try {
+                if (!context.inProtectedMode() && !dlock.hasLock()) {
+                    dlock.acquire(Lock.READ_LOCK);
+                    lockAcquired = true;
+                }
+                result.add(new String(new NodeProxy(doc).getStringValue()));
+            } catch (final LockException e) {
+                throw new XPathException(e.getMessage());
+            } finally {
+                if (lockAcquired)
+                    {dlock.release(Lock.READ_LOCK);}
+            }
+        }
+        
         // The third argument is a Pattern that is applied to produce a class label.
         // In this case it could be the last collection name in the path.
-        String target = "collection-name"; 
+        String target = uri.toString(); 
         ArrayIterator iterator =
-            new ArrayIterator(nodeValues, target);
+            new ArrayIterator(result, target);
 
         InstanceList instances = new InstanceList(pipe);
 
