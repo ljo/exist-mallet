@@ -1,6 +1,5 @@
 *.class
 *.iml
-*.jar
 *.xar
 expath-pkg.xml
 exist.xml

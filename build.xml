@@ -66,7 +66,7 @@
       <manifest>
         <attribute name="Project-Name" value="${project.app}"/>
         <attribute name="Project-Version" value="${project.version}"/>
-        <attribute name="Project-Build" value="${DSTAMP}${git.commit}"/>
+        <attribute name="Project-Build" value="${git.commit}"/>
       </manifest>
     </jar>
   </target>
