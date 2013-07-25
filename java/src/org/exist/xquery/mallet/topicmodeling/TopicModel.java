@@ -59,7 +59,7 @@ public class TopicModel extends BasicFunction {
                                                                     "The path within the database to the serialized instances document to use")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-words-per-topic top ranked words per topic")
+                                                             "The default, five, top ranked words per topic")
                               ),
         new FunctionSignature(
                               new QName("topic-model-sample", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
@@ -116,7 +116,7 @@ public class TopicModel extends BasicFunction {
 
     @Override
     public Sequence eval(Sequence[] args, Sequence contextSequence) throws XPathException {
-        String instancesPath = "/db/apps/mallet-topic-modeling-0.1/resources/instances/topic-example.mallet";
+        String instancesPath = null;
         int numWordsPerTopic = 5;
         int numTopics = 100;
         int numIterations = 50;
@@ -125,34 +125,44 @@ public class TopicModel extends BasicFunction {
         double beta_w = 0.01;
         Locale locale = Locale.US;
         
+        boolean showWordlists = false;
+        
         context.pushDocumentContext();
 
         try {
-            if (isCalledAs("topic-model-sample")) {
-                if (!args[0].isEmpty()) {
-                    instancesPath = args[0].getStringValue();
+            if (!args[0].isEmpty()) {
+                instancesPath = args[0].getStringValue();
+            }
+
+            if (getSignature().getArgumentCount() > 1) {
+                if (!args[1].isEmpty()) {
+                    numWordsPerTopic = ((NumericValue) args[1].convertTo(Type.INTEGER)).getInt();
                 }
-                if (args[1] != null && !args[1].isEmpty()) {
-                    numWordsPerTopic = ((NumericValue) args[1].convertTo(Type.INTEGER).itemAt(0).convertTo(Type.INTEGER)).getInt();
-                }
-            } else {
-                if (!args[2].isEmpty()) {
-                    numTopics = ((NumericValue) args[2].convertTo(Type.INTEGER).itemAt(0).convertTo(Type.INTEGER)).getInt();
-                }
-                if (!args[3].isEmpty()) {
-                    numIterations = ((NumericValue) args[3].convertTo(Type.INTEGER).itemAt(0).convertTo(Type.INTEGER)).getInt();
-                }
-                if (!args[4].isEmpty()) {
-                    numThreads = ((NumericValue) args[4].convertTo(Type.INTEGER).itemAt(0).convertTo(Type.INTEGER)).getInt();
-                }
-                if (!args[5].isEmpty()) {
-                    alpha_t = ((NumericValue) args[5].convertTo(Type.DOUBLE).itemAt(0).convertTo(Type.DOUBLE)).getDouble();
-                }
-                if (!args[6].isEmpty()) {
-                    beta_w = ((NumericValue) args[6].convertTo(Type.DOUBLE).itemAt(0).convertTo(Type.DOUBLE)).getDouble();
-                }
-                if (!args[7].getStringValue().isEmpty()) {
-                    locale = new Locale(args[7].getStringValue());
+            }
+            if (getSignature().getArgumentCount() > 2) {
+                if (isCalledAs("topic-model-sample")) {
+                    if (!args[2].isEmpty()) {
+                        locale = new Locale(args[2].getStringValue());
+                    }
+                } else {
+                    if (!args[2].isEmpty()) {
+                        numTopics = ((NumericValue) args[2].convertTo(Type.INTEGER)).getInt();
+                    }
+                    if (!args[3].isEmpty()) {
+                        numIterations = ((NumericValue) args[3].convertTo(Type.INTEGER)).getInt();
+                    }
+                    if (!args[4].isEmpty()) {
+                        numThreads = ((NumericValue) args[4].convertTo(Type.INTEGER)).getInt();
+                    }
+                    if (!args[5].isEmpty()) {
+                        alpha_t = ((NumericValue) args[5].convertTo(Type.DOUBLE)).getDouble();
+                    }
+                    if (!args[6].isEmpty()) {
+                        beta_w = ((NumericValue) args[6].convertTo(Type.DOUBLE)).getDouble();
+                    }
+                    if (!args[7].isEmpty()) {
+                        locale = new Locale(args[7].getStringValue());
+                    }
                 }
             }
             LOG.debug("Loading instances data.");
@@ -181,19 +191,6 @@ public class TopicModel extends BasicFunction {
 
             ValueSequence result = new ValueSequence();
 
-            // Make wordlists with topics for all instances individually.
-            // And all together even for -sample?
-            for (int i = 0; i < model.getData().size(); i++) {
-                FeatureSequence tokens = (FeatureSequence) model.getData().get(i).instance.getData();
-                Formatter out1 = new Formatter(new StringBuilder(), locale);
-            
-                LabelSequence topics = model.getData().get(i).topicSequence;
-                for (int position = 0; position < tokens.getLength(); position++) {
-                    out1.format("%s - %d\n", dataAlphabet.lookupObject(tokens.getIndexAtPosition(position)), topics.getIndexAtPosition(position));
-                }
-                result.add(new StringValue(out1.toString()));
-            }
-            
             // Estimate the topic distribution of the first instance, 
             //  given the current Gibbs state.
             LOG.info("Estimating topic distribution.");
@@ -217,9 +214,23 @@ public class TopicModel extends BasicFunction {
             }
             result.add(new StringValue(out2.toString()));
 
-            Formatter out3 = new Formatter(new StringBuilder(), locale);
-
+            if (showWordlists) {
+                // Make wordlists with topics for all instances individually.
+                // And all together even for -sample?
+                for (int i = 0; i < model.getData().size(); i++) {
+                    FeatureSequence tokens = (FeatureSequence) model.getData().get(i).instance.getData();
+                    Formatter out1 = new Formatter(new StringBuilder(), locale);
+            
+                    LabelSequence topics = model.getData().get(i).topicSequence;
+                    for (int position = 0; position < tokens.getLength(); position++) {
+                        out1.format("%s - %d\n", dataAlphabet.lookupObject(tokens.getIndexAtPosition(position)), topics.getIndexAtPosition(position));
+                    }
+                    result.add(new StringValue(out1.toString()));
+                }
+            }
+            
             // Create a new instance with high probability of topic 0
+            Formatter out3 = new Formatter(new StringBuilder(), locale);
             StringBuilder topicZeroText = new StringBuilder();
             Iterator<IDSorter> iterator = topicSortedWords.get(0).iterator();
             
@@ -279,7 +290,7 @@ public class TopicModel extends BasicFunction {
                 if (dataDir == null) {
                     dataDir = instancesFile.getParentFile();
                 }
-               cachedInstances = InstanceList.load(instancesFile);
+                cachedInstances = InstanceList.load(instancesFile);
             }
         } catch (PermissionDeniedException e) {
             throw new XPathException("Permission denied to read instances resource", e);
