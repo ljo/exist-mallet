@@ -106,7 +106,7 @@ public class CreateInstances extends BasicFunction {
         String tokenRegex = "[\\p{L}\\p{N}_]+";
         //stopWordsPath args[2].getStringValue();
         //tokenRegex args[3].getStringValue();
-        //QName qname = new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
+        QName qname = null; new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
 
         context.pushDocumentContext();
 
@@ -114,7 +114,10 @@ public class CreateInstances extends BasicFunction {
             if (isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) {
                 createInstances(createPipe(tokenRegex), getParameterValues(args[1]).toArray(new String[0]));
             } else {
-                createInstancesCollection(createPipe(tokenRegex), args[1].getStringValue(), ((QNameValue) args[2]).getQName());
+                if (!args[2].isEmpty()) {
+                    qname = ((QNameValue) args[2]).getQName();
+                }
+                createInstancesCollection(createPipe(tokenRegex), args[1].getStringValue(), qname);
             }
             if (doc == null) {
                 return Sequence.EMPTY_SEQUENCE;
