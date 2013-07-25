@@ -113,7 +113,7 @@ public class TopicModel extends BasicFunction {
     @Override
     public Sequence eval(Sequence[] args, Sequence contextSequence) throws XPathException {
         String instancesPath = "/db/apps/mallet-topic-modeling-0.1/resources/instances/topic-example.mallet";
-        int numTopicsToShow = 5;
+        int numWordsPerTopic = 5;
         int numTopics = 100;
         int numIterations = 50;
         int numThreads = 2;
@@ -129,7 +129,7 @@ public class TopicModel extends BasicFunction {
                     instancesPath = args[0].getStringValue();
                 }
                 if (args[1] != null && !args[1].isEmpty()) {
-                    numTopicsToShow = ((NumericValue) args[1].convertTo(Type.INTEGER).itemAt(0).convertTo(Type.INTEGER)).getInt();
+                    numWordsPerTopic = ((NumericValue) args[1].convertTo(Type.INTEGER).itemAt(0).convertTo(Type.INTEGER)).getInt();
                 }
             } else {
                 if (!args[2].isEmpty()) {
@@ -204,7 +204,7 @@ public class TopicModel extends BasicFunction {
                 Iterator<IDSorter> iterator = topicSortedWords.get(topic).iterator();
                 out2.format("%d\t%.3f\t", topic, topicDistribution[topic]);
                 int rank = 0;
-                while (iterator.hasNext() && rank < numTopicsToShow) {
+                while (iterator.hasNext() && rank < numWordsPerTopic) {
                     IDSorter idCountPair = iterator.next();
                     out2.format("%s (%.0f) ", dataAlphabet.lookupObject(idCountPair.getID()), idCountPair.getWeight());
                     rank++;
@@ -217,7 +217,7 @@ public class TopicModel extends BasicFunction {
             Iterator<IDSorter> iterator = topicSortedWords.get(0).iterator();
             
             int rank = 0;
-            while (iterator.hasNext() && rank < numTopicsToShow) {
+            while (iterator.hasNext() && rank < numWordsPerTopic) {
                 IDSorter idCountPair = iterator.next();
                 topicZeroText.append(dataAlphabet.lookupObject(idCountPair.getID()) + " ");
                 rank++;
