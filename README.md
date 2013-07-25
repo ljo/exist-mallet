@@ -19,7 +19,7 @@ There are currently two main function groups:
 Processes resources in the provided collection hierachy and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.
 
 topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri as xs
-:anyURI) as xs:string?
+:anyURI, $qname as xs:QName?) as xs:string?
 
 topics:create-instances-node($instances-doc as xs:anyURI, $node as node()+) as 
 xs:string?
@@ -49,12 +49,13 @@ $language as xs:string?) as xs:string+
 ```xquery
 xquery version "3.0";
 import module namespace tm="http://exist-db.org/xquery/mallet-topic-modeling";
+declare namespace tei="http://www.tei-c.org/ns/1.0";
 
 let $text := 
-"Ett lite större test än det borde gå an om några dagar. 
+("Ett lite större test än det borde gå an om några dagar. 
 Vad är ämnet om inte några ämnesord kommer med? 
-eXist-db applikationen får berätta när den funkar. "
-let $text2 := <text>{$text}</text>
+eXist-db applikationen får berätta när den funkar. ", "Dessutom nu med två texter som strängargument. ")
+let $text2 := (<text>{$text[1]}</text>, <text>{$text[2]}</text>)
 let $text3 := xs:anyURI("/db/dramawebben/data/works/AgrellA_Domd")
 let $instances-doc-suffix := ".mallet"
 let $instances-doc-prefix := "/db/apps/mallet-topic-modeling/resources/instances/topic-example"
@@ -72,7 +73,7 @@ let $created := if ($create-instances-p) then
     switch ($call-type)
         case "string" return tm:create-instances-string($instances-uri, $text)
         case "node" return tm:create-instances-node($instances-uri, $text2)
-        case "collection" return tm:create-instances-collection($instances-uri, $text3)
+        case "collection" return tm:create-instances-collection($instances-uri, $text3, xs:QName("tei:body"))
         default return tm:create-instances-string($instances-uri, $text)
     else ()
     
