@@ -216,7 +216,7 @@ public class TopicModel extends BasicFunction {
                 out2.format("\n");
             }
             result.add(new StringValue(out2.toString()));
-            /*            
+
             Formatter out3 = new Formatter(new StringBuilder(), locale);
 
             // Create a new instance with high probability of topic 0
@@ -232,7 +232,7 @@ public class TopicModel extends BasicFunction {
             
             // Create a new instance named "test instance" with empty target and source fields.
             InstanceList testing = new InstanceList(instances.getPipe());
-            testing.addThruPipe(new Instance(topicZeroText.toString(), null, "test instance", null));
+            //testing.addThruPipe(new Instance(topicZeroText.toString(), null, "test instance", null));
 
             LOG.info("Creating inferencer.");
             TopicInferencer inferencer = model.getInferencer();
@@ -241,17 +241,21 @@ public class TopicModel extends BasicFunction {
             //                           int numIterations,
             //                           int thinning,
             //                           int burnIn)
-            double[] testProbabilities = inferencer.getSampledDistribution(testing.get(0), 10, 1, 5);
-            out3.format("0\t%.3f", testProbabilities[0]);
+            // double[] testProbabilities = inferencer.getSampledDistribution(testing.get(0), 10, 1, 5);
+            // out3.format("0\t%.3f", testProbabilities[0]);
 
-            result.add(new StringValue(out2.toString()));
-            */
+            //result.add(new StringValue(out3.toString()));
 
             return result;
 
         } finally {
             context.popDocumentContext();
         }
+    }
+
+    private void cleanCaches() {
+        cachedInstances = null;
+        cachedInferencer = null;
     }
 
     /**
