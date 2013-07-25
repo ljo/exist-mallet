@@ -293,6 +293,13 @@ public class CreateInstances extends BasicFunction {
             }
     }
 
+    /**
+     * The method <code>getParameterValues</code>
+     *
+     * @param parameter a <code>Sequence</code> value
+     * @return a <code>List<String></code> value
+     * @exception XPathException if an error occurs
+     */
     public static List<String> getParameterValues(Sequence parameter) throws XPathException {
         final List<String> args = new ArrayList<String>();
             for (final SequenceIterator j = parameter.iterate(); j.hasNext();) {

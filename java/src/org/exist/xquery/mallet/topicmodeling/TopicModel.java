@@ -53,37 +53,37 @@ public class TopicModel extends BasicFunction {
     public final static FunctionSignature signatures[] = {
         new FunctionSignature(
                               new QName("topic-model-sample", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top topics. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).",
+                              "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked words per topic. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to the serialized instances document to use")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-topics-to-show top ranked topics")
+                                                             "The $number-of-words-per-topic top ranked words per topic")
                               ),
         new FunctionSignature(
                               new QName("topic-model-sample", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top raked topics. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).",
+                              "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked words per topic. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to the serialized instances document to use"),
-                                  new FunctionParameterSequenceType("number-of-topics-to-show", Type.INTEGER, Cardinality.EXACTLY_ONE,
-                                                                    "The number of top ranked topics to show"),
+                                  new FunctionParameterSequenceType("number-of-words-per-topic", Type.INTEGER, Cardinality.EXACTLY_ONE,
+                                                                    "The number of top ranked words per topic to show"),
                                   new FunctionParameterSequenceType("language", Type.STRING, Cardinality.ZERO_OR_ONE,
                                                                     "The lowercase two-letter ISO-639 code")
 
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-topics-to-show top ranked topics")
+                                                             "The $number-of-words-per-topic top ranked words per topic")
                               ),
         new FunctionSignature(
                               new QName("topic-model", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
-                              "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked topics.",
+                              "Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked words per topic.",
                               new SequenceType[] {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to the serialized instances document to use"),
-                                  new FunctionParameterSequenceType("number-of-topics-to-show", Type.INTEGER, Cardinality.EXACTLY_ONE,
-                                                                    "The number of top ranked topics to show"),
+                                  new FunctionParameterSequenceType("number-of-words-per-topic", Type.INTEGER, Cardinality.EXACTLY_ONE,
+                                                                    "The number of top ranked words per topic to show"),
                                   new FunctionParameterSequenceType("number-of-topics", Type.INTEGER, Cardinality.EXACTLY_ONE,
                                                                     "The number of topics to create"),
                                   new FunctionParameterSequenceType("number-of-iterations", Type.INTEGER, Cardinality.ZERO_OR_ONE,
@@ -98,7 +98,7 @@ public class TopicModel extends BasicFunction {
                                                                     "The lowercase two-letter ISO-639 code")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-topics-to-show top ranked topics")
+                                                             "The $number-of-words-per-topic top ranked words per topic")
                               )
     };
 
@@ -148,7 +148,7 @@ public class TopicModel extends BasicFunction {
                     beta_w = ((NumericValue) args[6].convertTo(Type.DOUBLE).itemAt(0).convertTo(Type.DOUBLE)).getDouble();
                 }
                 if (!args[7].getStringValue().isEmpty()) {
-                    new Locale(args[7].getStringValue());
+                    locale = new Locale(args[7].getStringValue());
                 }
             }
             LOG.debug("Loading instances data.");
@@ -170,14 +170,15 @@ public class TopicModel extends BasicFunction {
                 model.estimate();
             } catch (IOException e) {
                 throw new XPathException(this, "Error while reading instances resource: " + e.getMessage(), e);
-            }                
+            }
             
             // The data alphabet maps word IDs to strings
             Alphabet dataAlphabet = instances.getDataAlphabet();
 
             ValueSequence result = new ValueSequence();
 
-            // Make wordlists and topics for all instances individually. And/or all together?
+            // Make wordlists with topics for all instances individually.
+            // And all together even for -sample?
             for (int i = 0; i < model.getData().size(); i++) {
                 FeatureSequence tokens = (FeatureSequence) model.getData().get(i).instance.getData();
                 Formatter out1 = new Formatter(new StringBuilder(), locale);
@@ -241,6 +242,14 @@ public class TopicModel extends BasicFunction {
         }
     }
 
+    /**
+     * The method <code>readInstances</code>
+     *
+     * @param context a <code>XQueryContext</code> value
+     * @param instancesPath a <code>String</code> value
+     * @return an <code>InstanceList</code> value
+     * @exception XPathException if an error occurs
+     */
     public static InstanceList readInstances(XQueryContext context, final String instancesPath) throws XPathException {
         try {
             if (instancesSource == null || !instancesPath.equals(instancesSource)) {
