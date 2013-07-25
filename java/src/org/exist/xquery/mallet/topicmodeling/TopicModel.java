@@ -102,9 +102,13 @@ public class TopicModel extends BasicFunction {
                               )
     };
 
-    private static String instancesSource = null;
     private static File dataDir = null;
+
+    private static String instancesSource = null;
     private static InstanceList cachedInstances = null;
+
+    private static String inferencerSource = null;
+    private static TopicInferencer cachedInferencer = null;
 
     public TopicModel(XQueryContext context, FunctionSignature signature) {
         super(context, signature);
@@ -119,7 +123,7 @@ public class TopicModel extends BasicFunction {
         int numThreads = 2;
         double alpha_t = 0.01;
         double beta_w = 0.01;
-        Locale locale = locale = Locale.US;
+        Locale locale = Locale.US;
         
         context.pushDocumentContext();
 
@@ -211,7 +215,10 @@ public class TopicModel extends BasicFunction {
                 }
                 out2.format("\n");
             }
-            /*
+            result.add(new StringValue(out2.toString()));
+            /*            
+            Formatter out3 = new Formatter(new StringBuilder(), locale);
+
             // Create a new instance with high probability of topic 0
             StringBuilder topicZeroText = new StringBuilder();
             Iterator<IDSorter> iterator = topicSortedWords.get(0).iterator();
@@ -226,14 +233,19 @@ public class TopicModel extends BasicFunction {
             // Create a new instance named "test instance" with empty target and source fields.
             InstanceList testing = new InstanceList(instances.getPipe());
             testing.addThruPipe(new Instance(topicZeroText.toString(), null, "test instance", null));
-            
-            TopicInferencer inferencer = model.getInferencer();
-            double[] testProbabilities = inferencer.getSampledDistribution(testing.get(0), 10, 1, 5);
-            out.format("0\t%.3f", testProbabilities[0]);
-            */
 
+            LOG.info("Creating inferencer.");
+            TopicInferencer inferencer = model.getInferencer();
+            LOG.info("Sampling distribution.");
+            //public double[] getSampledDistribution(Instance instance,
+            //                           int numIterations,
+            //                           int thinning,
+            //                           int burnIn)
+            double[] testProbabilities = inferencer.getSampledDistribution(testing.get(0), 10, 1, 5);
+            out3.format("0\t%.3f", testProbabilities[0]);
 
             result.add(new StringValue(out2.toString()));
+            */
 
             return result;
 
@@ -260,9 +272,10 @@ public class TopicModel extends BasicFunction {
                 }
                 BinaryDocument binaryDocument = (BinaryDocument)doc;
                 File instancesFile = context.getBroker().getBinaryFile(binaryDocument);
-                dataDir = instancesFile.getParentFile();
-                InstanceList.load(instancesFile);
-                cachedInstances = InstanceList.load(instancesFile);
+                if (dataDir == null) {
+                    dataDir = instancesFile.getParentFile();
+                }
+               cachedInstances = InstanceList.load(instancesFile);
             }
         } catch (PermissionDeniedException e) {
             throw new XPathException("Permission denied to read instances resource", e);
@@ -270,5 +283,40 @@ public class TopicModel extends BasicFunction {
             throw new XPathException("Error while reading instances resource: " + e.getMessage(), e);
         }
         return cachedInstances;
+    }
+
+    /**
+     * The method <code>readInferencer</code>
+     *
+     * @param context a <code>XQueryContext</code> value
+     * @param inferencerPath a <code>String</code> value
+     * @return an <code>TopicInferencer</code> value
+     * @exception XPathException if an error occurs
+     */
+    public static TopicInferencer readInferencer(XQueryContext context, final String inferencerPath) throws XPathException {
+        try {
+            if (inferencerSource == null || !inferencerPath.equals(inferencerSource)) {
+                inferencerSource = inferencerPath;
+                DocumentImpl doc = (DocumentImpl) context.getBroker().getXMLResource(XmldbURI.createInternal(inferencerPath));
+                if (doc.getResourceType() != DocumentImpl.BINARY_FILE) {
+                    throw new XPathException("Inferencer path does not point to a binary resource");
+                }
+                BinaryDocument binaryDocument = (BinaryDocument)doc;
+                File inferencerFile = context.getBroker().getBinaryFile(binaryDocument);
+                if (dataDir == null) {
+                    dataDir = inferencerFile.getParentFile();
+                }
+                
+                cachedInferencer = TopicInferencer.read(inferencerFile);
+            }
+        } catch (PermissionDeniedException e) {
+            throw new XPathException("Permission denied to read inferencer resource", e);
+        } catch (IOException e) {
+            throw new XPathException("Error while reading inferencer resource: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new XPathException("Exception while reading inferencer resource", e);
+        }
+
+        return cachedInferencer;
     }
 }
