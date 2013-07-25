@@ -21,6 +21,7 @@ import org.exist.dom.BinaryDocument;
 import org.exist.dom.DefaultDocumentSet;
 import org.exist.dom.DocumentImpl;
 import org.exist.dom.DocumentSet;
+import org.exist.dom.ElementImpl;
 import org.exist.dom.MutableDocumentSet;
 import org.exist.dom.NodeProxy;
 import org.exist.dom.NodeSet;
@@ -37,6 +38,8 @@ import org.exist.util.VirtualTempFile;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.*;
 import org.exist.xquery.value.*;
+
+import org.w3c.dom.NodeList;
 
 /**
  * Create Instances functions to be used by most module functions of the Mallet sub-packages.
@@ -78,7 +81,9 @@ public class CreateInstances extends BasicFunction {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to where to store the serialized instances document"),
                                   new FunctionParameterSequenceType("collection-uri", Type.ANY_URI, Cardinality.EXACTLY_ONE,
-                                                                    "The collection hierarchy to create the instances out of")
+                                                                    "The collection hierarchy to create the instances out of"),
+                                  new FunctionParameterSequenceType("qname", Type.QNAME, Cardinality.ZERO_OR_ONE,
+                                                                    "The QName to restrict instance contents to, e. g. xs:QName(\"tei:body\")")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
                                                              "The path to the stored instances document if successfully stored, otherwise the empty sequence.")      
@@ -101,6 +106,7 @@ public class CreateInstances extends BasicFunction {
         String tokenRegex = "[\\p{L}\\p{N}_]+";
         //stopWordsPath args[2].getStringValue();
         //tokenRegex args[3].getStringValue();
+        //QName qname = new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
 
         context.pushDocumentContext();
 
@@ -108,7 +114,7 @@ public class CreateInstances extends BasicFunction {
             if (isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) {
                 createInstances(createPipe(tokenRegex), getParameterValues(args[1]).toArray(new String[0]));
             } else {
-                createInstancesCollection(createPipe(tokenRegex), args[1].getStringValue());
+                createInstancesCollection(createPipe(tokenRegex), args[1].getStringValue(), ((QNameValue) args[2]).getQName());
             }
             if (doc == null) {
                 return Sequence.EMPTY_SEQUENCE;
@@ -177,7 +183,7 @@ public class CreateInstances extends BasicFunction {
         storeInstances(instances);
     }
 
-    private void createInstancesCollection(Pipe pipe, String collection)  throws XPathException {
+    private void createInstancesCollection(Pipe pipe, String collection, final QName qname)  throws XPathException {
         DocumentSet docs = null;
         XmldbURI uri = null;
         try {
@@ -203,7 +209,7 @@ public class CreateInstances extends BasicFunction {
             throw new XPathException("FODC0002: can not access collection '" + pde.getMessage() + "'");   
         }
         // iterate through all docs and create the node set
-        final ArrayList<String> result = new ArrayList<String>(docs.getDocumentCount());
+        final ArrayList<String> result = new ArrayList<String>(docs.getDocumentCount() + 20);
         Lock dlock;
         DocumentImpl doc;
         for (final Iterator<DocumentImpl> i = docs.getDocumentIterator(); i.hasNext();) {
@@ -215,7 +221,17 @@ public class CreateInstances extends BasicFunction {
                     dlock.acquire(Lock.READ_LOCK);
                     lockAcquired = true;
                 }
-                result.add(new String(new NodeProxy(doc).getStringValue()));
+                if (qname != null) {
+                    NodeList nl = new NodeProxy(doc).getDocument().getElementsByTagNameNS(qname.getNamespaceURI(), qname.getLocalName());
+                    for (int ei =0; ei < nl.getLength(); ei++) {
+                        result.add(new String(nl.item(ei).getNodeValue()));
+                    }
+                    
+                } else {
+                    result.add(new String(new NodeProxy(doc).getStringValue()));
+                }
+
+
             } catch (final LockException e) {
                 throw new XPathException(e.getMessage());
             } finally {
