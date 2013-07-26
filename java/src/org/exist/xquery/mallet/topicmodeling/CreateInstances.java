@@ -103,10 +103,11 @@ public class CreateInstances extends BasicFunction {
         instancesPath = args[0].getStringValue();
         // args[1] = source
         String stopWordsPath = null; 
-        String tokenRegex = "[\\p{L}\\p{N}_]+";
+        String tokenRegex = "[\\p{L}\\p{N}_-]+";
         //stopWordsPath args[2].getStringValue();
         //tokenRegex args[3].getStringValue();
-        QName qname = null; new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
+        QName qname = null; //new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
+        //java.util.logging.config.level=SEVERE
 
         context.pushDocumentContext();
 
@@ -175,9 +176,9 @@ public class CreateInstances extends BasicFunction {
         String target = "manual-selection"; 
         ArrayIterator iterator =
             new ArrayIterator(texts, target);
-        
+
         InstanceList instances = new InstanceList(pipe);
-        
+
         // Process each instance provided by the iterator
         LOG.debug("Processing instances.");
         instances.addThruPipe(iterator);
@@ -309,7 +310,7 @@ public class CreateInstances extends BasicFunction {
             }
             txnManager.close(txn);
             brokerPool.release(broker);
-            }
+        }
     }
 
     /**
@@ -321,10 +322,10 @@ public class CreateInstances extends BasicFunction {
      */
     public static List<String> getParameterValues(Sequence parameter) throws XPathException {
         final List<String> args = new ArrayList<String>();
-            for (final SequenceIterator j = parameter.iterate(); j.hasNext();) {
-                final Item next = j.nextItem();
-                args.add(next.getStringValue());
-            }
+        for (final SequenceIterator j = parameter.iterate(); j.hasNext();) {
+            final Item next = j.nextItem();
+            args.add(next.getStringValue());
+        }
         return args;
     }
 }

@@ -9,6 +9,7 @@ import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.logging.Level;
 import java.util.Properties;
 import java.util.TreeSet;
 import java.util.regex.*;
@@ -169,6 +170,7 @@ public class TopicModel extends BasicFunction {
             final double alpha_t_param = numTopics * alpha_t;
             ParallelTopicModel model = new ParallelTopicModel(numTopics, alpha_t_param, beta_w);
             InstanceList instances = readInstances(context, instancesPath);
+            model.logger.setLevel(Level.SEVERE);
             model.addInstances(instances);
             
             // Use N parallel samplers, which each look at one half the corpus and combine
