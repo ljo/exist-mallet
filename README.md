@@ -5,7 +5,7 @@ Integrates the Mallet Machine Learning and Topic Modeling library into eXist-db.
 
 ## Compile and install
 
-1. clone the github repository: https://github.com/ljo/exist-mallet-topic-modeling
+1. clone the github repository: https://github.com/ljo/exist-mallet
 2. edit local.build.properties and set exist.dir to point to your eXist-db install directory
 3. call "ant" in the directory to create a .xar
 4. upload the xar into eXist-db using the dashboard
