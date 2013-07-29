@@ -73,19 +73,20 @@ let $text :=
 Vad är ämnet om inte några ämnesord kommer med? 
 eXist-db applikationen får berätta när den funkar. ", "Dessutom nu med två texter som strängargument. ")
 let $text2 := (<text>{$text[1]}</text>, <text>{$text[2]}</text>)
-let $text3 := xs:anyURI("/db/dramawebben/data/works/AgrellA_Domd")
+let $text3 := xs:anyURI("/db/dramawebben/data/works")
 let $instances-doc-suffix := ".mallet"
+let $topic-model-doc-suffix := ".tm"
 let $instances-doc-prefix := "/db/apps/mallet-topic-modeling/resources/instances/topic-example"
 let $instances-path := $instances-doc-prefix || $instances-doc-suffix
 let $instances-path2 := $instances-doc-prefix || "2" || $instances-doc-suffix
 let $instances-path3 := $instances-doc-prefix || "3" || $instances-doc-suffix
-let $instances-path4 := $instances-doc-prefix || "4" || $instances-doc-suffix
 
-let $mode := 3
+let $mode := 2
 let $call-type := ("string", "node", "collection")[$mode]
 let $instances-uri := xs:anyURI(($instances-path, $instances-path2, $instances-path3)[$mode])
-let $new-instances-uri := xs:anyURI($instances-path4)
-let $create-instances-p := true()
+let $topic-model-uri := xs:anyURI(($instances-path || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix)[$mode])
+
+let $create-instances-p := false()
 
 let $created := if ($create-instances-p) then 
     switch ($call-type)
@@ -94,8 +95,10 @@ let $created := if ($create-instances-p) then
         case "collection" return tm:create-instances-collection($instances-uri, $text3, xs:QName("tei:body"))
         default return tm:create-instances-string($instances-uri, $text)
     else ()
-    
-return
-    tm:topic-model-sample($instances-uri, 5, "sv")
-(: tm:topic-model-inference($instances-uri, 5, 25, 50, (), (), (), "sv", $new-instances-uri) :)
+return 
+    if ($create-instances-p) then
+        tm:topic-model-inference($instances-uri, 5, 25, 50, (), (), (), "sv", $instances-uri)
+        else
+    tm:topic-model-inference($topic-model-uri, $instances-uri, 50, (), ())
+(:  :tm:topic-model($instances-uri, 5, 25, 50, (), (), (), "sv") :)
 ```
