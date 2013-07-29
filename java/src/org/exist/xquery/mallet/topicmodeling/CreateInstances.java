@@ -108,7 +108,12 @@ public class CreateInstances extends BasicFunction {
         //tokenRegex args[3].getStringValue();
         QName qname = null; //new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
         //java.util.logging.config.level=SEVERE
-
+        final String malletLoggingLevel = System.getProperty("java.util.logging.config.level");
+        //if ("".equals(malletLoggingLevel)) {
+        //    model.logger.setLevel(Level.SEVERE);
+        //} else {
+        //    model.logger.setLevel(malletLoggingLevel);
+        //}
         context.pushDocumentContext();
 
         try {

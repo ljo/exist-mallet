@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
@@ -30,6 +31,9 @@ import org.exist.collections.Collection;
 import org.exist.dom.BinaryDocument;
 import org.exist.dom.DocumentImpl;
 import org.exist.dom.QName;
+//import org.exist.memtree.DocumentBuilderReceiver;
+import org.exist.memtree.MemTreeBuilder;
+import org.exist.memtree.NodeImpl;
 import org.exist.security.PermissionDeniedException;
 import org.exist.storage.BrokerPool;
 import org.exist.storage.DBBroker;
@@ -59,7 +63,7 @@ public class TopicModel extends BasicFunction {
                                   new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
                                                                     "The path within the database to the serialized instances document to use")
                               },
-                              new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
+                              new FunctionReturnSequenceType(Type.NODE, Cardinality.ONE_OR_MORE,
                                                              "The default, five, top ranked words per topic")
                               ),
         new FunctionSignature(
@@ -74,7 +78,7 @@ public class TopicModel extends BasicFunction {
                                                                     "The lowercase two-letter ISO-639 code")
 
                               },
-                              new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
+                              new FunctionReturnSequenceType(Type.NODE, Cardinality.ONE_OR_MORE,
                                                              "The $number-of-words-per-topic top ranked words per topic")
                               ),
         new FunctionSignature(
@@ -98,7 +102,7 @@ public class TopicModel extends BasicFunction {
                                   new FunctionParameterSequenceType("language", Type.STRING, Cardinality.ZERO_OR_ONE,
                                                                     "The lowercase two-letter ISO-639 code")
                               },
-                              new FunctionReturnSequenceType(Type.STRING, Cardinality.ONE_OR_MORE,
+                              new FunctionReturnSequenceType(Type.NODE, Cardinality.ONE_OR_MORE,
                                                              "The $number-of-words-per-topic top ranked words per topic")
                               )
     };
@@ -170,7 +174,15 @@ public class TopicModel extends BasicFunction {
             final double alpha_t_param = numTopics * alpha_t;
             ParallelTopicModel model = new ParallelTopicModel(numTopics, alpha_t_param, beta_w);
             InstanceList instances = readInstances(context, instancesPath);
-            model.logger.setLevel(Level.SEVERE);
+
+            final String malletLoggingLevel = System.getProperty("java.util.logging.config.level");
+            if ("".equals(malletLoggingLevel)) {
+                model.logger.setLevel(Level.SEVERE);
+            } else {
+                //model.logger.setLevel(malletLoggingLevel);
+                model.logger.setLevel(Level.SEVERE);
+            }
+
             model.addInstances(instances);
             
             // Use N parallel samplers, which each look at one half the corpus and combine
@@ -202,33 +214,13 @@ public class TopicModel extends BasicFunction {
             ArrayList<TreeSet<IDSorter>> topicSortedWords = model.getSortedWords();
             
             // Show top N words in topics with proportions for the first document
-            Formatter out2 = new Formatter(new StringBuilder(), locale);
-            for (int topic = 0; topic < numTopics; topic++) {
-                Iterator<IDSorter> iterator = topicSortedWords.get(topic).iterator();
-                out2.format("%d\t%.3f\t", topic, topicDistribution[topic]);
-                int rank = 0;
-                while (iterator.hasNext() && rank < numWordsPerTopic) {
-                    IDSorter idCountPair = iterator.next();
-                    out2.format("%s (%.0f) ", dataAlphabet.lookupObject(idCountPair.getID()), idCountPair.getWeight());
-                    rank++;
-                }
-                out2.format("\n");
-            }
-            result.add(new StringValue(out2.toString()));
+            
+            result.add(topicXMLReport(context, topicSortedWords, dataAlphabet, numWordsPerTopic, numTopics, alpha_t));
 
             if (showWordlists) {
                 // Make wordlists with topics for all instances individually.
                 // And all together even for -sample?
-                for (int i = 0; i < model.getData().size(); i++) {
-                    FeatureSequence tokens = (FeatureSequence) model.getData().get(i).instance.getData();
-                    Formatter out1 = new Formatter(new StringBuilder(), locale);
-            
-                    LabelSequence topics = model.getData().get(i).topicSequence;
-                    for (int position = 0; position < tokens.getLength(); position++) {
-                        out1.format("%s - %d\n", dataAlphabet.lookupObject(tokens.getIndexAtPosition(position)), topics.getIndexAtPosition(position));
-                    }
-                    result.add(new StringValue(out1.toString()));
-                }
+                result.add(wordListsXMLReport(context, model, dataAlphabet));
             }
             
             // Create a new instance with high probability of topic 0
@@ -335,5 +327,74 @@ public class TopicModel extends BasicFunction {
         }
 
         return cachedInferencer;
+    }
+
+	/**
+     * The method <code>topicXMLReport</code>
+     *
+     * @param context a <code>XQueryContext</code> value
+     * @param topicSortedWords an <code>ArrayList<TreeSet<IDSorter>></code> value
+     * @param dataAlphabet an <code>Alphabet</code> value
+     * @param numWordsPerTopic an <code>int</code> value
+     * @param numTopics an <code>int</code> value
+     * @param alpha_t a <code>double</code> value
+     * @return a <code>NodeValue</code> value
+     */
+    public NodeValue topicXMLReport(final XQueryContext context, final ArrayList<TreeSet<IDSorter>> topicSortedWords, Alphabet dataAlphabet, final int numWordsPerTopic, final int numTopics, final double alpha_t) {
+        double[] alpha = new double[numTopics];
+        Arrays.fill(alpha, alpha_t);
+        final MemTreeBuilder builder = context.getDocumentBuilder();
+        builder.startDocument();
+        builder.startElement(new QName("topicModel", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+		for (int topic = 0; topic < numTopics; topic++) {
+            builder.startElement(new QName("topic", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+            builder.addAttribute(new QName("id", null, null), String.valueOf(topic));
+            builder.addAttribute(new QName("alpha", null, null), String.valueOf(alpha[topic]));
+            builder.addAttribute(new QName("totalTokens", null, null), String.valueOf(topicSortedWords.get(topic).size()));
+			int word = 1;
+			Iterator<IDSorter> iterator = topicSortedWords.get(topic).iterator();
+			while (iterator.hasNext() && word < numWordsPerTopic) {
+				IDSorter info = iterator.next();
+                builder.startElement(new QName("word", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+                builder.addAttribute(new QName("rank", null, null), String.valueOf(word));
+                builder.characters((CharSequence) dataAlphabet.lookupObject(info.getID()));
+                builder.endElement();
+                word++;
+			}
+            builder.endElement();
+		}
+        builder.endElement();
+
+        return (NodeValue) builder.getDocument().getDocumentElement();
+	}
+
+
+	/**
+     * The method <code>topicXMLReport</code>
+     *
+     * @param context a <code>XQueryContext</code> value
+     * @param model a <code>ParallelTopicModel</code> value
+     * @param dataAlphabet an <code>Alphabet</code> value
+     * @return a <code>NodeValue</code> value
+     */
+    public NodeValue wordListsXMLReport(final XQueryContext context, final ParallelTopicModel model, final Alphabet dataAlphabet) {
+        final MemTreeBuilder builder = context.getDocumentBuilder();
+        builder.startDocument();
+        builder.startElement(new QName("wordLists", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+        for (int i = 0; i < model.getData().size(); i++) {
+            FeatureSequence tokens = (FeatureSequence) model.getData().get(i).instance.getData();
+            builder.startElement(new QName("wordList", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+            LabelSequence topics = model.getData().get(i).topicSequence;
+            for (int position = 0; position < tokens.getLength(); position++) {
+                builder.startElement(new QName("token", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+                builder.addAttribute(new QName("normalized-form", null, null), String.valueOf(dataAlphabet.lookupObject(tokens.getIndexAtPosition(position))));
+                builder.addAttribute(new QName("topic", null, null), String.valueOf(topics.getIndexAtPosition(position)));
+                builder.endElement();
+            }
+            builder.endElement();
+        }
+        builder.endElement();
+
+        return (NodeValue) builder.getDocument().getDocumentElement();
     }
 }
