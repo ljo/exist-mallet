@@ -103,7 +103,54 @@ public class TopicModel extends BasicFunction {
                                                                     "The lowercase two-letter ISO-639 code")
                               },
                               new FunctionReturnSequenceType(Type.NODE, Cardinality.ONE_OR_MORE,
-                                                             "The $number-of-words-per-topic top ranked words per topic")
+                                                             "The $number-of-words-per-topic top ranked words per topic") 
+                              ),
+        new FunctionSignature(
+                              new QName("topic-model-inference", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
+                              "Processes instances and creates a topic model which can be used for inference. Returns the topic probabilities for the inferenced instances.",
+                              new SequenceType[] {
+                                  new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to the serialized instances document to use"),
+                                  new FunctionParameterSequenceType("number-of-words-per-topic", Type.INTEGER, Cardinality.EXACTLY_ONE,
+                                                                    "The number of top ranked words per topic to show"),
+                                  new FunctionParameterSequenceType("number-of-topics", Type.INTEGER, Cardinality.EXACTLY_ONE,
+                                                                    "The number of topics to create"),
+                                  new FunctionParameterSequenceType("number-of-iterations", Type.INTEGER, Cardinality.ZERO_OR_ONE,
+                                                                    "The number of iterations to run"),
+                                  new FunctionParameterSequenceType("number-of-threads", Type.INTEGER, Cardinality.ZERO_OR_ONE,
+                                                                    "The number of threads to use"),
+                                  new FunctionParameterSequenceType("alpha_t", Type.DOUBLE, Cardinality.ZERO_OR_ONE,
+                                                                    "The value for the Dirichlet alpha_t parameter"),
+                                  new FunctionParameterSequenceType("beta_w", Type.DOUBLE, Cardinality.ZERO_OR_ONE,
+                                                                    "The value for the Prior beta_w parameter"),
+                                  new FunctionParameterSequenceType("language", Type.STRING, Cardinality.ZERO_OR_ONE,
+                                                                    "The lowercase two-letter ISO-639 code"),
+                                  new FunctionParameterSequenceType("instances-inference-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to the serialized instances document to inference topics on")
+
+                              },
+                              new FunctionReturnSequenceType(Type.NODE, Cardinality.ONE_OR_MORE,
+                                                             "The topic probabilities for the inferenced instances") 
+                              ),
+        new FunctionSignature(
+                              new QName("topic-model-inference", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
+                              "Processes new instances and applies the stored topic model's inferencer. Returns the topic probabilities for the inferenced instances.",
+                              new SequenceType[] {
+                                  new FunctionParameterSequenceType("topic-model-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to the serialized topic model document to use"),
+                                  new FunctionParameterSequenceType("instances-inference-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to the serialized instances document to inference topics on"),
+                                  new FunctionParameterSequenceType("number-of-iterations", Type.INTEGER, Cardinality.EXACTLY_ONE,
+                                                                    "The number of iterations to run"),
+
+                                  new FunctionParameterSequenceType("thinning", Type.INTEGER, Cardinality.ZERO_OR_ONE,
+                                                                    "The value of the thinning parameter, default is 10"),
+                                  new FunctionParameterSequenceType("burn-in", Type.INTEGER, Cardinality.ZERO_OR_ONE,
+                                                                    "The value of the burn-in parameter, default is 10")
+
+                              },
+                              new FunctionReturnSequenceType(Type.NODE, Cardinality.ONE_OR_MORE,
+                                                             "The topic probabilities for the inferenced instances")
                               )
     };
 
@@ -115,6 +162,10 @@ public class TopicModel extends BasicFunction {
     private static String inferencerSource = null;
     private static TopicInferencer cachedInferencer = null;
 
+    private static String topicModelSource = null;
+    private static ParallelTopicModel cachedTopicModel = null;
+
+
     public TopicModel(XQueryContext context, FunctionSignature signature) {
         super(context, signature);
     }
@@ -122,6 +173,8 @@ public class TopicModel extends BasicFunction {
     @Override
     public Sequence eval(Sequence[] args, Sequence contextSequence) throws XPathException {
         String instancesPath = null;
+        String inferencerInstancesPath = null;
+        String topicModelPath = null;
         int numWordsPerTopic = 5;
         int numTopics = 100;
         int numIterations = 50;
@@ -129,8 +182,12 @@ public class TopicModel extends BasicFunction {
         double alpha_t = 0.01;
         double beta_w = 0.01;
         Locale locale = Locale.US;
-        
+         // thinning = 1, burnIn = 5
+        int thinning = 10;
+        int burnIn = 10;
+
         boolean showWordlists = false;
+        boolean storeTopicModel = true;
         
         context.pushDocumentContext();
 
@@ -148,6 +205,24 @@ public class TopicModel extends BasicFunction {
                 if (isCalledAs("topic-model-sample")) {
                     if (!args[2].isEmpty()) {
                         locale = new Locale(args[2].getStringValue());
+                    }
+                } else if (isCalledAs("topic-model-inferencer")
+                           && getSignature().getArgumentCount() == 5) {
+             
+                    if (!args[0].isEmpty()) {
+                        topicModelPath = args[0].getStringValue();
+                    }
+                    if (!args[1].isEmpty()) {
+                        inferencerInstancesPath = args[1].getStringValue();
+                    }
+                    if (!args[2].isEmpty()) {
+                        numIterations = ((NumericValue) args[2].convertTo(Type.INTEGER)).getInt();
+                    }
+                    if (!args[3].isEmpty()) {
+                        thinning = ((NumericValue) args[3].convertTo(Type.INTEGER)).getInt();
+                    }
+                    if (!args[4].isEmpty()) {
+                        burnIn = ((NumericValue) args[4].convertTo(Type.INTEGER)).getInt();
                     }
                 } else {
                     if (!args[2].isEmpty()) {
@@ -168,13 +243,15 @@ public class TopicModel extends BasicFunction {
                     if (!args[7].isEmpty()) {
                         locale = new Locale(args[7].getStringValue());
                     }
+                    if (isCalledAs("topic-model-inference")) {
+                        if (!args[8].isEmpty()) {
+                            inferencerInstancesPath = args[8].getStringValue();;
+                        }
+                    }
                 }
             }
-            LOG.debug("Loading instances data.");
-            final double alpha_t_param = numTopics * alpha_t;
-            ParallelTopicModel model = new ParallelTopicModel(numTopics, alpha_t_param, beta_w);
-            InstanceList instances = readInstances(context, instancesPath);
-
+            ParallelTopicModel model = null;
+            ValueSequence result = new ValueSequence();
             final String malletLoggingLevel = System.getProperty("java.util.logging.config.level");
             if ("".equals(malletLoggingLevel)) {
                 model.logger.setLevel(Level.SEVERE);
@@ -183,70 +260,83 @@ public class TopicModel extends BasicFunction {
                 model.logger.setLevel(Level.SEVERE);
             }
 
-            model.addInstances(instances);
-            
-            // Use N parallel samplers, which each look at one half the corpus and combine
+            if (!(isCalledAs("topic-model-inferencer")
+                  && getSignature().getArgumentCount() == 5)) {
+                LOG.debug("Loading instances data.");
+                final double alpha_t_param = numTopics * alpha_t;
+                model = new ParallelTopicModel(numTopics, alpha_t_param, beta_w);
+                InstanceList instances = readInstances(context, instancesPath);
+       
+                model.addInstances(instances);
+                
+                // Use N parallel samplers, which each look at one half the corpus and combine
             //  statistics after every iteration.
-            model.setNumThreads(numThreads);
+                model.setNumThreads(numThreads);
+                
+                // Run the model for 50 iterations by default and stop 
+                // (this is for testing only, 
+                //  for real applications, use 1000 to 2000 iterations)
+                model.setNumIterations(numIterations);
+                try {
+                    LOG.info("Estimating model.");
+                    model.estimate();
+                } catch (IOException e) {
+                    throw new XPathException(this, "Error while reading instances resource: " + e.getMessage(), e);
+                }
+                // The data alphabet maps word IDs to strings
+                Alphabet dataAlphabet = instances.getDataAlphabet();
+                
+             
+                // Estimate the topic distribution of the first instance, 
+                //  given the current Gibbs state.
+                LOG.info("Estimating topic distribution.");
+                double[] topicDistribution = model.getTopicProbabilities(0);
             
-            // Run the model for 50 iterations by default and stop 
-            // (this is for testing only, 
-            //  for real applications, use 1000 to 2000 iterations)
-            model.setNumIterations(numIterations);
-            try {
-                LOG.info("Estimating model.");
-                model.estimate();
-            } catch (IOException e) {
-                throw new XPathException(this, "Error while reading instances resource: " + e.getMessage(), e);
+                if (storeTopicModel) {
+                    if (topicModelPath == null) {
+                        topicModelPath = instancesPath + ".tm";
+                    }
+
+                    storeTopicModel(model, topicModelPath);
+                }
+
+                // Get an array of sorted sets of word ID/count pairs
+                ArrayList<TreeSet<IDSorter>> topicSortedWords = model.getSortedWords();
+                
+                // Show top N words in topics with proportions for the first document
+                if (!isCalledAs("topic-model-inference")) {
+                    result.add(topicXMLReport(context, topicSortedWords, dataAlphabet, numWordsPerTopic, numTopics, alpha_t));
+                    
+                    if (showWordlists) {
+                        // Make wordlists with topics for all instances individually.
+                        // And all together even for -sample?
+                        result.add(wordListsXMLReport(context, model, dataAlphabet));
+                    }
+                }
+            } else {
+                model = readTopicModel(context, topicModelPath); 
             }
-            
-            // The data alphabet maps word IDs to strings
-            Alphabet dataAlphabet = instances.getDataAlphabet();
-
-            ValueSequence result = new ValueSequence();
-
-            // Estimate the topic distribution of the first instance, 
-            //  given the current Gibbs state.
-            LOG.info("Estimating topic distribution.");
-            double[] topicDistribution = model.getTopicProbabilities(0);
-            
-            // Get an array of sorted sets of word ID/count pairs
-            ArrayList<TreeSet<IDSorter>> topicSortedWords = model.getSortedWords();
-            
-            // Show top N words in topics with proportions for the first document
-            
-            result.add(topicXMLReport(context, topicSortedWords, dataAlphabet, numWordsPerTopic, numTopics, alpha_t));
-
-            if (showWordlists) {
-                // Make wordlists with topics for all instances individually.
-                // And all together even for -sample?
-                result.add(wordListsXMLReport(context, model, dataAlphabet));
+            if (isCalledAs("topic-model-inference")) {
+                LOG.info("Creating inferencer.");
+                TopicInferencer inferencer = model.getInferencer();
+                result.add(inferencedTopicsXMLReport(context, inferencer, inferencerInstancesPath, numIterations, thinning, burnIn));
             }
-            
+
             // Create a new instance with high probability of topic 0
-            Formatter out3 = new Formatter(new StringBuilder(), locale);
-            StringBuilder topicZeroText = new StringBuilder();
-            Iterator<IDSorter> iterator = topicSortedWords.get(0).iterator();
+            //Formatter out3 = new Formatter(new StringBuilder(), locale);
+            //StringBuilder topicZeroText = new StringBuilder();
+            //Iterator<IDSorter> iterator = topicSortedWords.get(0).iterator();
             
-            int rank = 0;
-            while (iterator.hasNext() && rank < numWordsPerTopic) {
-                IDSorter idCountPair = iterator.next();
-                topicZeroText.append(dataAlphabet.lookupObject(idCountPair.getID()) + " ");
-                rank++;
-            }
-            
+            //int rank = 0;
+            //while (iterator.hasNext() && rank < numWordsPerTopic) {
+            //    IDSorter idCountPair = iterator.next();
+            //    topicZeroText.append(dataAlphabet.lookupObject(idCountPair.getID()) + " ");
+            //    rank++;
+            //}
+      
             // Create a new instance named "test instance" with empty target and source fields.
-            InstanceList testing = new InstanceList(instances.getPipe());
+            //InstanceList testing = new InstanceList(instances.getPipe());
             //testing.addThruPipe(new Instance(topicZeroText.toString(), null, "test instance", null));
-
-            LOG.info("Creating inferencer.");
-            TopicInferencer inferencer = model.getInferencer();
-            LOG.info("Sampling distribution.");
-            //public double[] getSampledDistribution(Instance instance,
-            //                           int numIterations,
-            //                           int thinning,
-            //                           int burnIn)
-            // double[] testProbabilities = inferencer.getSampledDistribution(testing.get(0), 10, 1, 5);
             // out3.format("0\t%.3f", testProbabilities[0]);
 
             //result.add(new StringValue(out3.toString()));
@@ -329,6 +419,97 @@ public class TopicModel extends BasicFunction {
         return cachedInferencer;
     }
 
+    /**
+     * The method <code>readTopicModel</code>
+     *
+     * @param context a <code>XQueryContext</code> value
+     * @param topicModelPath a <code>String</code> value
+     * @return a <code>ParallelTopicModel</code> value
+     * @exception XPathException if an error occurs
+     */
+    public static ParallelTopicModel readTopicModel(XQueryContext context, final String topicModelPath) throws XPathException {
+        try {
+            if (topicModelSource == null || !topicModelPath.equals(topicModelSource)) {
+                topicModelSource = topicModelPath;
+                DocumentImpl doc = (DocumentImpl) context.getBroker().getXMLResource(XmldbURI.createInternal(topicModelPath));
+                if (doc.getResourceType() != DocumentImpl.BINARY_FILE) {
+                    throw new XPathException("TopicModel path does not point to a binary resource");
+                }
+                BinaryDocument binaryDocument = (BinaryDocument)doc;
+                File topicModelFile = context.getBroker().getBinaryFile(binaryDocument);
+                if (dataDir == null) {
+                    dataDir = topicModelFile.getParentFile();
+                }
+                
+                cachedTopicModel = ParallelTopicModel.read(topicModelFile);
+            }
+        } catch (PermissionDeniedException e) {
+            throw new XPathException("Permission denied to read topicModel resource", e);
+        } catch (IOException e) {
+            throw new XPathException("Error while reading topicModel resource: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new XPathException("Exception while reading topicModel resource", e);
+        }
+
+        return cachedTopicModel;
+    }
+
+    private void storeTopicModel(final ParallelTopicModel model, final String topicModelPath)  throws XPathException {
+        XmldbURI sourcePath = XmldbURI.createInternal(topicModelPath);
+        XmldbURI colURI = sourcePath.removeLastSegment();
+        XmldbURI docURI = sourcePath.lastSegment();
+        // References to the database
+        BrokerPool brokerPool = context.getBroker().getBrokerPool();
+        DBBroker broker = null;
+        final org.exist.security.SecurityManager sm = brokerPool.getSecurityManager();
+        Collection collection = null;
+
+        // Start transaction
+        TransactionManager txnManager = brokerPool.getTransactionManager();
+        Txn txn = txnManager.beginTransaction();
+        
+        try {
+            broker = brokerPool.get(sm.getCurrentSubject());
+        
+            collection = broker.openCollection(colURI, Lock.WRITE_LOCK);
+            if (collection == null) {
+                String errorMessage = String.format("Collection %s does not exist", colURI);
+                LOG.error(errorMessage);
+                txnManager.abort(txn);
+                throw new XPathException(this, errorMessage);
+            }
+
+
+            // Stream into database
+
+            File topicModelTempFile = File.createTempFile("malletTopicModel", ".tmp");
+            topicModelTempFile.deleteOnExit();
+            model.write(topicModelTempFile);
+            VirtualTempFile vtf = new VirtualTempFile(topicModelTempFile);
+            InputStream bis = vtf.getByteStream();
+            
+            try {
+                DocumentImpl doc = collection.addBinaryResource(txn, broker, docURI, bis, MimeType.BINARY_TYPE.getName(), vtf.length());
+            } finally {
+                bis.close();
+            }
+            // Commit change
+            txnManager.commit(txn);
+            
+        } catch (Throwable ex) {
+            txnManager.abort(txn);
+            throw new XPathException(this, String.format("Unable to write instances document into database: %s", ex.getMessage()));
+
+        } finally {
+            if (collection != null) {
+                collection.release(Lock.WRITE_LOCK);
+            }
+            txnManager.close(txn);
+            brokerPool.release(broker);
+        }
+    }
+
+
 	/**
      * The method <code>topicXMLReport</code>
      *
@@ -398,4 +579,45 @@ public class TopicModel extends BasicFunction {
 
         return (NodeValue) builder.getDocument().getDocumentElement();
     }
+
+    /**
+     * The method <code>inferencedTopicsXMLReport</code>
+     *
+     * @param context a <code>XQueryContext</code> value
+     * @param inferencer a <code>TopicInferencer</code> value
+     * @param inferencerInstancesPath a <code>String</code> value
+     * @param numIterations an <code>int</code> value
+     * @param thinning an <code>int</code> value
+     * @param burnIn an <code>int</code> value
+     * @return a <code>NodeValue</code> value
+     * @exception XPathException if an error occurs
+     */
+    public NodeValue inferencedTopicsXMLReport(final XQueryContext context, final TopicInferencer inferencer, final String inferencerInstancesPath, final int numIterations, final int thinning, final int burnIn) throws XPathException {
+        final MemTreeBuilder builder = context.getDocumentBuilder();
+        builder.startDocument();
+        builder.startElement(new QName("inferencedTopics", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+        LOG.info("Sampling distribution.");
+        InstanceList inferenceInstances = readInstances(context, inferencerInstancesPath);
+        //public double[] getSampledDistribution(Instance instance,
+        //                           int numIterations,
+        //                           int thinning,
+        //                           int burnIn)
+        for (int ii = 0; ii < inferenceInstances.size(); ii++) {
+            builder.startElement(new QName("instance", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+            builder.addAttribute(new QName("n", null, null), String.valueOf(ii));
+            
+            double[] testProbabilities = inferencer.getSampledDistribution(inferenceInstances.get(0), numIterations, thinning, burnIn);
+            for (int tp = 0; tp < testProbabilities.length; tp++) {
+                builder.startElement(new QName("topic", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
+                builder.addAttribute(new QName("n", null, null), String.valueOf(tp));
+                builder.addAttribute(new QName("probability", null, null), String.valueOf(testProbabilities[tp]));
+                builder.endElement();
+            }
+            builder.endElement();
+        }
+        builder.endElement();
+
+        return (NodeValue) builder.getDocument().getDocumentElement();
+    }
+
 }

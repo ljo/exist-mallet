@@ -12,7 +12,7 @@ Integrates the Mallet Machine Learning and Topic Modeling library into eXist-db.
 
 ## Functions
 
-There are currently two main function groups:
+There are currently three main function groups:
 
 ### topics:create-instances-*
 
@@ -27,22 +27,36 @@ xs:string?
 topics:create-instances-string($instances-doc as xs:anyURI, $text as xs:string+) 
 as xs:string?
 
-###   and topics:topic-model-sample and topics:topic-model
+###   topics:topic-model-sample and topics:topic-model
 Processes instances and creates a topic model which can be used for inference. Returns the specified number of top topics. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).
 
-topics:topic-model-sample($instances-doc as xs:anyURI) as xs:string+
+topics:topic-model-sample($instances-doc as xs:anyURI) as node()+
 
 topics:topic-model-sample($instances-doc as xs:anyURI, $number-of-topics-to-show 
-as xs:integer, $language as xs:string?) as xs:string+
+as xs:integer, $language as xs:string?) as node()+
 
-Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked topics.
+Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked words per topic.
 
-topics:topic-model($instances-doc as xs:anyURI, $number-of-topics-to-show as xs
+topics:topic-model($instances-doc as xs:anyURI, $number-of-words-per-topic as xs
 :integer, $number-of-topics as xs:integer, $number-of-iterations as xs:integer?, 
-$number-of-threads as xs:integer, $alpha_t as xs:double?, $beta_w as xs:double?, 
-$language as xs:string?) as xs:string+
+$number-of-threads as xs:integer?, $alpha_t as xs:double?, $beta_w as xs:double
+?, $language as xs:string?) as node()+
 
 
+### and topics:topic-model-inference
+Processes instances and creates a topic model which can be used for inference. Returns the topic probabilities for the inferenced instances.
+
+topics:topic-model-inference($instances-doc as xs:anyURI, $number-of-words-per
+-topic as xs:integer, $number-of-topics as xs:integer, $number-of-iterations as 
+xs:integer?, $number-of-threads as xs:integer?, $alpha_t as xs:double?, $beta_w 
+as xs:double?, $language as xs:string?, $instances-inference-doc as xs:anyURI) 
+as node()+
+
+Processes new instances and applies the stored topic model's inferencer. Returns the topic probabilities for the inferenced instances.
+
+topics:topic-model-inference($topic-model-doc as xs:anyURI, $instances-inference
+-doc as xs:anyURI, $number-of-iterations as xs:integer, $thinning as xs:integer
+?, $burn-in as xs:integer?) as node()+
 
 ## Usage example
 
@@ -62,11 +76,12 @@ let $instances-doc-prefix := "/db/apps/mallet-topic-modeling/resources/instances
 let $instances-path := $instances-doc-prefix || $instances-doc-suffix
 let $instances-path2 := $instances-doc-prefix || "2" || $instances-doc-suffix
 let $instances-path3 := $instances-doc-prefix || "3" || $instances-doc-suffix
+let $instances-path4 := $instances-doc-prefix || "4" || $instances-doc-suffix
 
 let $mode := 3
 let $call-type := ("string", "node", "collection")[$mode]
 let $instances-uri := xs:anyURI(($instances-path, $instances-path2, $instances-path3)[$mode])
-
+let $new-instances-uri := xs:anyURI($instances-path4)
 let $create-instances-p := true()
 
 let $created := if ($create-instances-p) then 
@@ -79,4 +94,5 @@ let $created := if ($create-instances-p) then
     
 return
     tm:topic-model-sample($instances-uri, 5, "sv")
+(: tm:topic-model-inference($instances-uri, 5, 25, 50, (), (), (), "sv", $new-instances-uri) :)
 ```
