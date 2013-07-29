@@ -188,17 +188,21 @@ public class TopicModel extends BasicFunction {
 
         boolean showWordlists = false;
         boolean storeTopicModel = true;
-        
+        boolean useStoredTopicModel = isCalledAs("topic-model-inference")
+            && getSignature().getArgumentCount() == 5 ? true : false;
+
         context.pushDocumentContext();
 
         try {
-            if (!args[0].isEmpty()) {
-                instancesPath = args[0].getStringValue();
-            }
 
-            if (getSignature().getArgumentCount() > 1) {
-                if (!args[1].isEmpty()) {
-                    numWordsPerTopic = ((NumericValue) args[1].convertTo(Type.INTEGER)).getInt();
+            if (!useStoredTopicModel) {
+                if (!args[0].isEmpty()) {
+                    instancesPath = args[0].getStringValue();
+                }
+                if (getSignature().getArgumentCount() > 1) {
+                    if (!args[1].isEmpty()) {
+                        numWordsPerTopic = ((NumericValue) args[1].convertTo(Type.INTEGER)).getInt();
+                    }
                 }
             }
             if (getSignature().getArgumentCount() > 2) {
@@ -206,9 +210,7 @@ public class TopicModel extends BasicFunction {
                     if (!args[2].isEmpty()) {
                         locale = new Locale(args[2].getStringValue());
                     }
-                } else if (isCalledAs("topic-model-inferencer")
-                           && getSignature().getArgumentCount() == 5) {
-             
+                } else if (useStoredTopicModel) {
                     if (!args[0].isEmpty()) {
                         topicModelPath = args[0].getStringValue();
                     }
@@ -260,8 +262,7 @@ public class TopicModel extends BasicFunction {
                 model.logger.setLevel(Level.SEVERE);
             }
 
-            if (!(isCalledAs("topic-model-inferencer")
-                  && getSignature().getArgumentCount() == 5)) {
+            if (!useStoredTopicModel) {
                 LOG.debug("Loading instances data.");
                 final double alpha_t_param = numTopics * alpha_t;
                 model = new ParallelTopicModel(numTopics, alpha_t_param, beta_w);
@@ -270,7 +271,7 @@ public class TopicModel extends BasicFunction {
                 model.addInstances(instances);
                 
                 // Use N parallel samplers, which each look at one half the corpus and combine
-            //  statistics after every iteration.
+                //  statistics after every iteration.
                 model.setNumThreads(numThreads);
                 
                 // Run the model for 50 iterations by default and stop 
@@ -314,6 +315,7 @@ public class TopicModel extends BasicFunction {
                     }
                 }
             } else {
+                LOG.info("Reading stored topic model for inferencing.");
                 model = readTopicModel(context, topicModelPath); 
             }
             if (isCalledAs("topic-model-inference")) {
@@ -405,7 +407,7 @@ public class TopicModel extends BasicFunction {
                 if (dataDir == null) {
                     dataDir = inferencerFile.getParentFile();
                 }
-                
+                LOG.debug("Reading stored inferencer.");
                 cachedInferencer = TopicInferencer.read(inferencerFile);
             }
         } catch (PermissionDeniedException e) {
@@ -440,7 +442,7 @@ public class TopicModel extends BasicFunction {
                 if (dataDir == null) {
                     dataDir = topicModelFile.getParentFile();
                 }
-                
+                LOG.debug("Reading stored topic model.");
                 cachedTopicModel = ParallelTopicModel.read(topicModelFile);
             }
         } catch (PermissionDeniedException e) {
