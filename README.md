@@ -30,6 +30,9 @@ as xs:string?
 ###   topics:topic-model-sample and topics:topic-model
 Processes instances and creates a topic model which can be used for inference. Returns the specified number of top topics. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).
 
+Note: currently the language parameter does nothing. It is supposed to format the numbers and guide eventual use of stopwords though.  
+
+
 topics:topic-model-sample($instances-doc as xs:anyURI) as node()+
 
 topics:topic-model-sample($instances-doc as xs:anyURI, $number-of-topics-to-show 
