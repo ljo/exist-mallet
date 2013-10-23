@@ -230,14 +230,17 @@ public class CreateInstances extends BasicFunction {
                     dlock.acquire(Lock.READ_LOCK);
                     lockAcquired = true;
                 }
+                DocumentImpl docImpl = new NodeProxy(doc).getDocument();
+                DBBroker broker = context.getBroker();
                 if (qname != null) {
-                    NodeList nl = new NodeProxy(doc).getDocument().getElementsByTagNameNS(qname.getNamespaceURI(), qname.getLocalName());
+                    NodeList nl = docImpl.getElementsByTagNameNS(qname.getNamespaceURI(), qname.getLocalName());
+
                     for (int ei =0; ei < nl.getLength(); ei++) {
-                        result.add(new String(nl.item(ei).getNodeValue()));
+                        result.add(new String(broker.getNodeValue((ElementImpl) nl.item(ei), true).replaceAll("­\\s*", "")));
                     }
                     
                 } else {
-                    result.add(new String(new NodeProxy(doc).getStringValue()));
+                    result.add(new String(broker.getNodeValue((ElementImpl) docImpl.getDocumentElement(), true)).replaceAll("­\\s*", ""));
                 }
 
 
