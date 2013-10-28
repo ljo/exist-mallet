@@ -255,17 +255,18 @@ public class TopicModel extends BasicFunction {
             ParallelTopicModel model = null;
             ValueSequence result = new ValueSequence();
             final String malletLoggingLevel = System.getProperty("java.util.logging.config.level");
-            if ("".equals(malletLoggingLevel)) {
-                model.logger.setLevel(Level.SEVERE);
-            } else {
-                //model.logger.setLevel(malletLoggingLevel);
-                model.logger.setLevel(Level.SEVERE);
-            }
 
             if (!useStoredTopicModel) {
                 LOG.debug("Loading instances data.");
                 final double alpha_t_param = numTopics * alpha_t;
                 model = new ParallelTopicModel(numTopics, alpha_t_param, beta_w);
+                if ("".equals(malletLoggingLevel)) {
+                    model.logger.setLevel(Level.SEVERE);
+                } else {
+                    //model.logger.setLevel(malletLoggingLevel);
+                    model.logger.setLevel(Level.SEVERE);
+                }
+
                 InstanceList instances = readInstances(context, instancesPath);
        
                 model.addInstances(instances);
@@ -534,12 +535,12 @@ public class TopicModel extends BasicFunction {
             builder.addAttribute(new QName("n", null, null), String.valueOf(topic));
             builder.addAttribute(new QName("alpha", null, null), String.valueOf(alpha[topic]));
             builder.addAttribute(new QName("totalTokens", null, null), String.valueOf(topicSortedWords.get(topic).size()));
-			int word = 1;
+			int word = 0;
 			Iterator<IDSorter> iterator = topicSortedWords.get(topic).iterator();
 			while (iterator.hasNext() && word < numWordsPerTopic) {
 				IDSorter info = iterator.next();
                 builder.startElement(new QName("token", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
-                builder.addAttribute(new QName("rank", null, null), String.valueOf(word));
+                builder.addAttribute(new QName("rank", null, null), String.valueOf(word + 1));
                 builder.characters((CharSequence) dataAlphabet.lookupObject(info.getID()));
                 builder.endElement();
                 word++;
