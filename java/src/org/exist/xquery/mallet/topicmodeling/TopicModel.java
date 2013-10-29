@@ -325,25 +325,6 @@ public class TopicModel extends BasicFunction {
                 result.add(inferencedTopicsXMLReport(context, inferencer, inferencerInstancesPath, numIterations, thinning, burnIn));
             }
 
-            // Create a new instance with high probability of topic 0
-            //Formatter out3 = new Formatter(new StringBuilder(), locale);
-            //StringBuilder topicZeroText = new StringBuilder();
-            //Iterator<IDSorter> iterator = topicSortedWords.get(0).iterator();
-            
-            //int rank = 0;
-            //while (iterator.hasNext() && rank < numWordsPerTopic) {
-            //    IDSorter idCountPair = iterator.next();
-            //    topicZeroText.append(dataAlphabet.lookupObject(idCountPair.getID()) + " ");
-            //    rank++;
-            //}
-      
-            // Create a new instance named "test instance" with empty target and source fields.
-            //InstanceList testing = new InstanceList(instances.getPipe());
-            //testing.addThruPipe(new Instance(topicZeroText.toString(), null, "test instance", null));
-            // out3.format("0\t%.3f", testProbabilities[0]);
-
-            //result.add(new StringValue(out3.toString()));
-
             return result;
 
         } finally {
@@ -354,6 +335,7 @@ public class TopicModel extends BasicFunction {
     private void cleanCaches() {
         cachedInstances = null;
         cachedInferencer = null;
+        cachedTopicModel = null;
     }
 
     /**
@@ -369,10 +351,10 @@ public class TopicModel extends BasicFunction {
             if (instancesSource == null || !instancesPath.equals(instancesSource)) {
                 instancesSource = instancesPath;
                 DocumentImpl doc = (DocumentImpl) context.getBroker().getXMLResource(XmldbURI.createInternal(instancesPath));
-                if (doc.getResourceType() != DocumentImpl.BINARY_FILE) {
+                if (doc == null || doc.getResourceType() != DocumentImpl.BINARY_FILE) {
                     throw new XPathException("Instances path does not point to a binary resource");
                 }
-                BinaryDocument binaryDocument = (BinaryDocument)doc;
+                BinaryDocument binaryDocument = (BinaryDocument) doc;
                 File instancesFile = context.getBroker().getBinaryFile(binaryDocument);
                 if (dataDir == null) {
                     dataDir = instancesFile.getParentFile();
@@ -609,7 +591,7 @@ public class TopicModel extends BasicFunction {
             builder.startElement(new QName("instance", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
             builder.addAttribute(new QName("n", null, null), String.valueOf(ii));
             
-            double[] testProbabilities = inferencer.getSampledDistribution(inferenceInstances.get(0), numIterations, thinning, burnIn);
+            double[] testProbabilities = inferencer.getSampledDistribution(inferenceInstances.get(ii), numIterations, thinning, burnIn);
             for (int tp = 0; tp < testProbabilities.length; tp++) {
                 builder.startElement(new QName("topic", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
                 builder.addAttribute(new QName("n", null, null), String.valueOf(tp));
