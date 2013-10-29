@@ -20,6 +20,7 @@ public class MalletTopicModelingModule extends AbstractInternalModule {
         new FunctionDef(CreateInstances.signatures[0], CreateInstances.class),
         new FunctionDef(CreateInstances.signatures[1], CreateInstances.class),
         new FunctionDef(CreateInstances.signatures[2], CreateInstances.class),
+        new FunctionDef(CreateInstances.signatures[3], CreateInstances.class),
         new FunctionDef(TopicModel.signatures[0], TopicModel.class),
         new FunctionDef(TopicModel.signatures[1], TopicModel.class),
         new FunctionDef(TopicModel.signatures[2], TopicModel.class),
