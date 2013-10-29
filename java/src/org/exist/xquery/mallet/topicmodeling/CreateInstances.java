@@ -121,8 +121,8 @@ public class CreateInstances extends BasicFunction {
         instancesPath = args[0].getStringValue();
         Properties parameters = new Properties();
         String stopWordsPath = null;
-        Boolean useStopWords = true;
-        String language = "sv";
+        Boolean useStopWords = false;
+        String language = "en";
         String tokenRegex = "[\\p{L}\\p{N}_-]+";
         QName qname = null; //new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
         //java.util.logging.config.level=SEVERE
