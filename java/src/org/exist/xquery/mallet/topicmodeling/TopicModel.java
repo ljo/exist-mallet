@@ -291,8 +291,8 @@ public class TopicModel extends BasicFunction {
              
                 // Estimate the topic distribution of the first instance, 
                 //  given the current Gibbs state.
-                LOG.info("Estimating topic distribution.");
-                double[] topicDistribution = model.getTopicProbabilities(0);
+                //LOG.info("Estimating topic distribution.");
+                //double[] topicDistribution = model.getTopicProbabilities(0);
             
                 if (storeTopicModel) {
                     if (topicModelPath == null) {
