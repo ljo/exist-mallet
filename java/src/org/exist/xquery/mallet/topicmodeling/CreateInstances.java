@@ -64,6 +64,20 @@ public class CreateInstances extends BasicFunction {
                                                              "The path to the stored instances document if successfully stored, otherwise the empty sequence")
                               ),
         new FunctionSignature(
+                              new QName("create-instances-string", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
+                              "Processes the provided text strings and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              new SequenceType[] {
+                                  new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to where to store the serialized instances document"),
+                                  new FunctionParameterSequenceType("text", Type.STRING, Cardinality.ONE_OR_MORE,
+                                                                    "The string(s) of text to create the instances out of"),
+                                  new FunctionParameterSequenceType("configuration", Type.ELEMENT, Cardinality.EXACTLY_ONE,
+                                                                    "The configuration, eg &lt;parameters&gt;&lt;param name='stopwords' value='false'/&gt;&lt;/parameters&gt;.")
+                              },
+                              new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
+                                                             "The path to the stored instances document if successfully stored, otherwise the empty sequence")
+                              ),
+        new FunctionSignature(
                               new QName("create-instances-node", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
                               "Processes the provided nodes and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
                               new SequenceType[] {
@@ -71,6 +85,20 @@ public class CreateInstances extends BasicFunction {
                                                                     "The path within the database to where to store the serialized instances document"),
                                   new FunctionParameterSequenceType("node", Type.NODE, Cardinality.ONE_OR_MORE,
                                                                     "The node(s) to create the instances out of")
+                              },
+                              new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
+                                                             "The path to the stored instances document if successfully stored, otherwise the empty sequence")
+                              ),
+        new FunctionSignature(
+                              new QName("create-instances-node", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
+                              "Processes the provided nodes and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.",
+                              new SequenceType[] {
+                                  new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to where to store the serialized instances document"),
+                                  new FunctionParameterSequenceType("node", Type.NODE, Cardinality.ONE_OR_MORE,
+                                                                    "The node(s) to create the instances out of"),
+                                  new FunctionParameterSequenceType("configuration", Type.ELEMENT, Cardinality.EXACTLY_ONE,
+                                                                    "The configuration, eg &lt;parameters&gt;&lt;param name='stopwords' value='false'/&gt;&lt;/parameters&gt;.")
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
                                                              "The path to the stored instances document if successfully stored, otherwise the empty sequence")
@@ -134,26 +162,32 @@ public class CreateInstances extends BasicFunction {
         //}
         context.pushDocumentContext();
 
-        if (getSignature().getArgumentCount() == 4) {
+        if (isCalledAs("create-instances-collection") && getSignature().getArgumentCount() == 4) {
             if (!args[3].isEmpty()) {
                 parameters = ModuleUtils.parseParameters(((NodeValue)args[3].itemAt(0)).getNode());
             }
-            for (String property : parameters.stringPropertyNames()) {
-                if ("stopwords".equals(property)) {
-                    String value = parameters.getProperty(property);
-                    useStopWords = Boolean.valueOf(value);
-                } else if ("language".equals(property)) {
-                    String value = parameters.getProperty(property);
-                    language = value;
-                } else if ("file-uri".equals(property)) {
-                    String value = parameters.getProperty(property);
-                    instancesPath = value;
-                }
+        } else if ((isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) && getSignature().getArgumentCount() == 3) {
+            if (!args[2].isEmpty()) {
+                parameters = ModuleUtils.parseParameters(((NodeValue)args[2].itemAt(0)).getNode());
+            }
+        }
+        
+        for (String property : parameters.stringPropertyNames()) {
+            if ("stopwords".equals(property)) {
+                String value = parameters.getProperty(property);
+                useStopWords = Boolean.valueOf(value);
+            } else if ("language".equals(property)) {
+                String value = parameters.getProperty(property);
+                language = value;
+            } else if ("file-uri".equals(property)) {
+                String value = parameters.getProperty(property);
+                instancesPath = value;
             }
         }
 
         try {
             if (isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) {
+
                 createInstances(createPipe(tokenRegex, useStopWords, language), getParameterValues(args[1]).toArray(new String[0]));
             } else {
                 if (!args[2].isEmpty()) {
@@ -194,7 +228,8 @@ public class CreateInstances extends BasicFunction {
             TokenSequenceRemoveStopwords tsrs = new TokenSequenceRemoveStopwords(false, true);
             if ("sv".equals(language)) {
                 tsrs.addStopWords(stopwordsSwedish);
-            }
+            } 
+
             pipeList.add(tsrs);
         }
 

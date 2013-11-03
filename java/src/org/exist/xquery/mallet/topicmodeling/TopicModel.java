@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Formatter;
@@ -165,6 +166,7 @@ public class TopicModel extends BasicFunction {
     private static String topicModelSource = null;
     private static ParallelTopicModel cachedTopicModel = null;
 
+    private static NumberFormat numberFormatter = null;
 
     public TopicModel(XQueryContext context, FunctionSignature signature) {
         super(context, signature);
@@ -182,6 +184,8 @@ public class TopicModel extends BasicFunction {
         double alpha_t = 0.01;
         double beta_w = 0.01;
         Locale locale = Locale.US;
+        numberFormatter = NumberFormat.getInstance(locale);
+        Boolean useNumberFormat = true;
          // thinning = 1, burnIn = 5
         int thinning = 10;
         int burnIn = 10;
@@ -255,6 +259,10 @@ public class TopicModel extends BasicFunction {
             ParallelTopicModel model = null;
             ValueSequence result = new ValueSequence();
             final String malletLoggingLevel = System.getProperty("java.util.logging.config.level");
+            numberFormatter = NumberFormat.getInstance(locale);
+            numberFormatter.setMinimumFractionDigits(3);
+            numberFormatter.setMaximumFractionDigits(3);
+            
 
             if (!useStoredTopicModel) {
                 LOG.debug("Loading instances data.");
@@ -595,7 +603,7 @@ public class TopicModel extends BasicFunction {
             for (int tp = 0; tp < testProbabilities.length; tp++) {
                 builder.startElement(new QName("topic", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX), null);
                 builder.addAttribute(new QName("n", null, null), String.valueOf(tp));
-                builder.addAttribute(new QName("probability", null, null), String.valueOf(testProbabilities[tp]));
+                builder.addAttribute(new QName("probability", null, null), String.valueOf(numberFormatter.format(testProbabilities[tp])));
                 builder.endElement();
             }
             builder.endElement();
