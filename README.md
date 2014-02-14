@@ -15,39 +15,29 @@ Integrates the Mallet Machine Learning and Topic Modeling library into eXist-db.
 There are currently three main function groups:
 
 ### topics:create-instances-*
+Processes resources in the provided collection hierarchy and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.
+The parameter $configuration gives the configuration, eg &lt;parameters&gt;&lt;param name='stopwords' value='false'/&gt;&lt;/parameters&gt;.
 
-Processes resources in the provided collection hierachy and creates serialized instances which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.
+topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri 
+as xs:anyURI, $qname as xs:QName?) as xs:string?
 
-topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri as xs
-:anyURI, $qname as xs:QName?) as xs:string?
+topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri 
+as xs:anyURI, $qname as xs:QName?, $configuration as element()) as xs:string?
 
 topics:create-instances-node($instances-doc as xs:anyURI, $node as node()+) as 
 xs:string?
 
+topics:create-instances-node($instances-doc as xs:anyURI, $node as node()+, 
+$configuration as element()) as xs:string?
+
 topics:create-instances-string($instances-doc as xs:anyURI, $text as xs:string+) 
 as xs:string?
 
-###   topics:topic-model-sample and topics:topic-model
-Processes instances and creates a topic model which can be used for inference. Returns the specified number of top topics. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).
+topics:create-instances-string($instances-doc as xs:anyURI, $text as xs:string+, 
+$configuration as element()) as xs:string?
 
-Note: currently the language parameter does nothing. It is supposed to format the numbers and guide eventual use of stopwords though.  
-
-
-topics:topic-model-sample($instances-doc as xs:anyURI) as node()+
-
-topics:topic-model-sample($instances-doc as xs:anyURI, $number-of-topics-to-show 
-as xs:integer, $language as xs:string?) as node()+
-
-Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked words per topic.
-
-topics:topic-model($instances-doc as xs:anyURI, $number-of-words-per-topic as xs
-:integer, $number-of-topics as xs:integer, $number-of-iterations as xs:integer?, 
-$number-of-threads as xs:integer?, $alpha_t as xs:double?, $beta_w as xs:double
-?, $language as xs:string?) as node()+
-
-
-### and topics:topic-model-inference
-Processes instances and creates a topic model which can be used for inference. Returns the topic probabilities for the inferenced instances.
+### topics:topic-model-inference
+Processes new instances and applies the stored topic model's inferencer. Returns the topic probabilities for the inferenced instances.
 
 topics:topic-model-inference($instances-doc as xs:anyURI, $number-of-words-per
 -topic as xs:integer, $number-of-topics as xs:integer, $number-of-iterations as 
@@ -55,11 +45,28 @@ xs:integer?, $number-of-threads as xs:integer?, $alpha_t as xs:double?, $beta_w
 as xs:double?, $language as xs:string?, $instances-inference-doc as xs:anyURI) 
 as node()+
 
-Processes new instances and applies the stored topic model's inferencer. Returns the topic probabilities for the inferenced instances.
-
 topics:topic-model-inference($topic-model-doc as xs:anyURI, $instances-inference
 -doc as xs:anyURI, $number-of-iterations as xs:integer, $thinning as xs:integer
 ?, $burn-in as xs:integer?) as node()+
+
+### topics:topic-model
+Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked words per topic.
+
+Note: currently the language parameter does very little. It guides formating of numbers and use of stopwords though. 
+
+topics:topic-model($instances-doc as xs:anyURI, $number-of-words-per-topic as xs
+:integer, $number-of-topics as xs:integer, $number-of-iterations as xs:integer?, 
+$number-of-threads as xs:integer?, $alpha_t as xs:double?, $beta_w as xs:double
+?, $language as xs:string?) as node()+
+
+### topics:topic-model-sample
+Processes instances and creates a topic model which can be used for inference. Returns the specified number of top ranked words per topic. All other parameters use default values. Runs the model for 50 iterations and stops (this is for testing only, for real applications, use 1000 to 2000 iterations).
+
+topics:topic-model-sample($instances-doc as xs:anyURI) as node()+
+
+topics:topic-model-sample($instances-doc as xs:anyURI, $number-of-words-per
+-topic as xs:integer, $language as xs:string?) as node()+
+
 
 ## Usage example
 
@@ -69,9 +76,9 @@ import module namespace tm="http://exist-db.org/xquery/mallet-topic-modeling";
 declare namespace tei="http://www.tei-c.org/ns/1.0";
 
 let $text := 
-("Ett lite större test än det borde gå an om några dagar. 
-Vad är ämnet om inte några ämnesord kommer med? 
-eXist-db applikationen får berätta när den funkar. ", "Dessutom nu med två texter som strängargument. ")
+("This is a test in English for the eXist-db@XML Prague preconference day. 
+A subject as good as any. So what subjects will be chosen to label this text? ", 
+"Can eXist-db really tell the subjects? Let us see now when we give two text as string arguments. ")
 let $text2 := (<text>{$text[1]}</text>, <text>{$text[2]}</text>)
 let $text3 := xs:anyURI("/db/dramawebben/data/works")
 let $instances-doc-suffix := ".mallet"
