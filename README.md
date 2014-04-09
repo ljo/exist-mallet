@@ -94,12 +94,16 @@ let $instances-uri := xs:anyURI(($instances-path, $instances-path2, $instances-p
 let $topic-model-uri := xs:anyURI(($instances-path || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix)[$mode])
 
 let $create-instances-p := false()
-
+let $config := 
+    <parameters>
+        <param name="stopwords" value="true"/>
+        <param name="language" value="sv"/>
+    </parameters>
 let $created := if ($create-instances-p) then 
     switch ($call-type)
-        case "string" return tm:create-instances-string($instances-uri, $text)
-        case "node" return tm:create-instances-node($instances-uri, $text2)
-        case "collection" return tm:create-instances-collection($instances-uri, $text3, xs:QName("tei:body"))
+        case "string" return tm:create-instances-string($instances-uri, $text, $config)
+        case "node" return tm:create-instances-node($instances-uri, $text2, $config)
+        case "collection" return tm:create-instances-collection($instances-uri, $text3, xs:QName("tei:body"), $config)
         default return tm:create-instances-string($instances-uri, $text)
     else ()
 return 
