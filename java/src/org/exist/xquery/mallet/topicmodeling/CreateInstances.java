@@ -17,14 +17,14 @@ import cc.mallet.pipe.iterator.*;
 import cc.mallet.types.InstanceList;
 
 import org.exist.collections.Collection;
-import org.exist.dom.BinaryDocument;
-import org.exist.dom.DefaultDocumentSet;
-import org.exist.dom.DocumentImpl;
-import org.exist.dom.DocumentSet;
-import org.exist.dom.ElementImpl;
-import org.exist.dom.MutableDocumentSet;
-import org.exist.dom.NodeProxy;
-import org.exist.dom.NodeSet;
+import org.exist.dom.persistent.BinaryDocument;
+import org.exist.dom.persistent.DefaultDocumentSet;
+import org.exist.dom.persistent.DocumentImpl;
+import org.exist.dom.persistent.DocumentSet;
+import org.exist.dom.persistent.ElementImpl;
+import org.exist.dom.persistent.MutableDocumentSet;
+import org.exist.dom.persistent.NodeProxy;
+import org.exist.dom.persistent.NodeSet;
 import org.exist.dom.QName;
 import org.exist.security.PermissionDeniedException;
 import org.exist.storage.BrokerPool;
@@ -309,10 +309,10 @@ public class CreateInstances extends BasicFunction {
                     dlock.acquire(Lock.READ_LOCK);
                     lockAcquired = true;
                 }
-                DocumentImpl docImpl = new NodeProxy(doc).getDocument();
+                DocumentImpl docImpl = new NodeProxy(doc).getOwnerDocument();
                 DBBroker broker = context.getBroker();
                 if (qname != null) {
-                    NodeList nl = docImpl.getElementsByTagNameNS(qname.getNamespaceURI(), qname.getLocalName());
+                    NodeList nl = docImpl.getElementsByTagNameNS(qname.getNamespaceURI(), qname.getLocalPart());
 
                     for (int ei =0; ei < nl.getLength(); ei++) {
                         result.add(new String(broker.getNodeValue((ElementImpl) nl.item(ei), true).replaceAll("­\\s*", "")));

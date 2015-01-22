@@ -78,27 +78,30 @@ declare namespace tei="http://www.tei-c.org/ns/1.0";
 let $text := 
 ("This is a test in English for the eXist-db@XML Prague preconference day. 
 A subject as good as any. So what subjects will be chosen to label this text? ", 
-"Can eXist-db really tell the subjects? Let us see now when we give two text as string arguments. ")
+"Can eXist-db really tell the subjects? Let us see now when we give two strings as arguments. ")
 let $text2 := (<text>{$text[1]}</text>, <text>{$text[2]}</text>)
 let $text3 := xs:anyURI("/db/dramawebben/data/works")
 let $instances-doc-suffix := ".mallet"
 let $topic-model-doc-suffix := ".tm"
-let $instances-doc-prefix := "/db/apps/mallet-topic-modeling/resources/instances/topic-example"
+(: Make sure the collection path you use here exists. :)
+let $instances-doc-prefix := "/db/temp/topic-example"
 let $instances-path := $instances-doc-prefix || $instances-doc-suffix
 let $instances-path2 := $instances-doc-prefix || "2" || $instances-doc-suffix
 let $instances-path3 := $instances-doc-prefix || "3" || $instances-doc-suffix
 
-let $mode := 2
+let $mode := 1
 let $call-type := ("string", "node", "collection")[$mode]
 let $instances-uri := xs:anyURI(($instances-path, $instances-path2, $instances-path3)[$mode])
 let $topic-model-uri := xs:anyURI(($instances-path || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix)[$mode])
 
-let $create-instances-p := false()
+(: Make sure you create an instance for the mode you use. :)
+let $create-instances-p := true()
+(: Please note this is an example configuration. :)
 let $config := 
     <parameters>
         <param name="stopwords" value="true"/>
         <param name="language" value="sv"/>
-    </parameters>
+</parameters>
 let $created := if ($create-instances-p) then 
     switch ($call-type)
         case "string" return tm:create-instances-string($instances-uri, $text, $config)
@@ -108,8 +111,8 @@ let $created := if ($create-instances-p) then
     else ()
 return 
     if ($create-instances-p) then
-        tm:topic-model-inference($instances-uri, 5, 25, 50, (), (), (), "sv", $instances-uri)
-        else
-    tm:topic-model-inference($topic-model-uri, $instances-uri, 50, (), ())
-(:  :tm:topic-model($instances-uri, 5, 25, 50, (), (), (), "sv") :)
+        tm:topic-model($instances-uri, 5, 15, 50, (), (), (), "sv")
+	(: tm:topic-model-inference($instances-uri, 5, 15, 50, (), (), (), "sv", $instances-uri) :)
+    else
+        tm:topic-model-inference($topic-model-uri, $instances-uri, 50, (), ())
 ```

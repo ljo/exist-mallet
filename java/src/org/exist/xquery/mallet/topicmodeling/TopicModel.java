@@ -29,12 +29,11 @@ import cc.mallet.types.InstanceList;
 import cc.mallet.types.LabelSequence;
 
 import org.exist.collections.Collection;
-import org.exist.dom.BinaryDocument;
-import org.exist.dom.DocumentImpl;
+import org.exist.dom.persistent.BinaryDocument;
+import org.exist.dom.persistent.DocumentImpl;
 import org.exist.dom.QName;
-//import org.exist.memtree.DocumentBuilderReceiver;
-import org.exist.memtree.MemTreeBuilder;
-import org.exist.memtree.NodeImpl;
+import org.exist.dom.memtree.MemTreeBuilder;
+import org.exist.dom.memtree.NodeImpl;
 import org.exist.security.PermissionDeniedException;
 import org.exist.storage.BrokerPool;
 import org.exist.storage.DBBroker;
@@ -153,6 +152,8 @@ public class TopicModel extends BasicFunction {
                               new FunctionReturnSequenceType(Type.NODE, Cardinality.ONE_OR_MORE,
                                                              "The topic probabilities for the inferenced instances")
                               )
+	// new FunctionParameterSequenceType("configuration", Type.ELEMENT, Cardinality.EXACTLY_ONE,
+	// "The configuration, eg &lt;parameters&gt;&lt;param name='useStored' value='false'/&gt;&lt;param name='showWordLists' value='false'/&gt;&lt;/parameters&gt;.")
     };
 
     private static File dataDir = null;
@@ -166,7 +167,7 @@ public class TopicModel extends BasicFunction {
     private static String topicModelSource = null;
     private static ParallelTopicModel cachedTopicModel = null;
 
-    private static NumberFormat numberFormatter = null;
+    private NumberFormat numberFormatter = null;
 
     public TopicModel(XQueryContext context, FunctionSignature signature) {
         super(context, signature);
@@ -190,7 +191,7 @@ public class TopicModel extends BasicFunction {
         int thinning = 10;
         int burnIn = 10;
 
-        boolean showWordlists = false;
+        boolean showWordLists = true;
         boolean storeTopicModel = true;
         boolean useStoredTopicModel = isCalledAs("topic-model-inference")
             && getSignature().getArgumentCount() == 5 ? true : false;
@@ -274,55 +275,55 @@ public class TopicModel extends BasicFunction {
                     //model.logger.setLevel(malletLoggingLevel);
                     model.logger.setLevel(Level.SEVERE);
                 }
+		try {
+		    InstanceList instances = readInstances(context, instancesPath);
 
-                InstanceList instances = readInstances(context, instancesPath);
-       
-                model.addInstances(instances);
+		    model.addInstances(instances);
                 
-                // Use N parallel samplers, which each look at one half the corpus and combine
-                //  statistics after every iteration.
-                model.setNumThreads(numThreads);
-                
-                // Run the model for 50 iterations by default and stop 
-                // (this is for testing only, 
-                //  for real applications, use 1000 to 2000 iterations)
-                model.setNumIterations(numIterations);
-                try {
-                    LOG.info("Estimating model.");
-                    model.estimate();
-                } catch (IOException e) {
-                    throw new XPathException(this, "Error while reading instances resource: " + e.getMessage(), e);
-                }
-                // The data alphabet maps word IDs to strings
-                Alphabet dataAlphabet = instances.getDataAlphabet();
-                
-             
-                // Estimate the topic distribution of the first instance, 
-                //  given the current Gibbs state.
-                //LOG.info("Estimating topic distribution.");
-                //double[] topicDistribution = model.getTopicProbabilities(0);
-            
-                if (storeTopicModel) {
-                    if (topicModelPath == null) {
-                        topicModelPath = instancesPath + ".tm";
-                    }
+		    // Use N parallel samplers, which each look at one half the corpus and combine
+		    //  statistics after every iteration.
+		    model.setNumThreads(numThreads);
 
-                    storeTopicModel(model, topicModelPath);
-                }
+		    // Run the model for 50 iterations by default and stop
+		    // (this is for testing only,
+		    //  for real applications, use 1000 to 2000 iterations)
+		    model.setNumIterations(numIterations);
 
-                // Get an array of sorted sets of word ID/count pairs
-                ArrayList<TreeSet<IDSorter>> topicSortedWords = model.getSortedWords();
-                
-                // Show top N words in topics with proportions for the first document
-                if (!isCalledAs("topic-model-inference")) {
-                    result.add(topicXMLReport(context, topicSortedWords, dataAlphabet, numWordsPerTopic, numTopics, alpha_t));
-                    
-                    if (showWordlists) {
-                        // Make wordlists with topics for all instances individually.
-                        // And all together even for -sample?
-                        result.add(wordListsXMLReport(context, model, dataAlphabet));
-                    }
-                }
+		    LOG.info("Estimating model.");
+		    model.estimate();
+
+		    // The data alphabet maps word IDs to strings
+		    Alphabet dataAlphabet = instances.getDataAlphabet();
+
+		    // Estimate the topic distribution of the first instance,
+		    //  given the current Gibbs state.
+		    //LOG.info("Estimating topic distribution.");
+		    //double[] topicDistribution = model.getTopicProbabilities(0);
+
+		    if (storeTopicModel) {
+			if (topicModelPath == null) {
+			    topicModelPath = instancesPath + ".tm";
+			}
+			storeTopicModel(model, topicModelPath);
+		    }
+
+		    // Get an array of sorted sets of word ID/count pairs
+		    ArrayList<TreeSet<IDSorter>> topicSortedWords = model.getSortedWords();
+
+		    // Show top N words in topics with proportions for the first document
+		    if (!isCalledAs("topic-model-inference")) {
+			result.add(topicXMLReport(context, topicSortedWords, dataAlphabet, numWordsPerTopic, numTopics, alpha_t));
+
+			if (showWordLists) {
+			    // Make wordlists with topics for all instances individually.
+			    // And all together even for -sample?
+			    result.add(wordListsXMLReport(context, model, dataAlphabet));
+			}
+		    }
+		} catch (IOException e) {
+		    throw new XPathException(this, "Error while reading instances resource: " + e.getMessage(), e);
+		}
+
             } else {
                 LOG.info("Reading stored topic model for inferencing.");
                 model = readTopicModel(context, topicModelPath); 
@@ -330,7 +331,9 @@ public class TopicModel extends BasicFunction {
             if (isCalledAs("topic-model-inference")) {
                 LOG.info("Creating inferencer.");
                 TopicInferencer inferencer = model.getInferencer();
-                result.add(inferencedTopicsXMLReport(context, inferencer, inferencerInstancesPath, numIterations, thinning, burnIn));
+		if (inferencer != null) {
+		    result.add(inferencedTopicsXMLReport(context, inferencer, inferencerInstancesPath, numIterations, thinning, burnIn));
+		}
             }
 
             return result;
@@ -544,7 +547,7 @@ public class TopicModel extends BasicFunction {
 
 
 	/**
-     * The method <code>topicXMLReport</code>
+     * The method <code>wordListsXMLReport</code>
      *
      * @param context a <code>XQueryContext</code> value
      * @param model a <code>ParallelTopicModel</code> value
