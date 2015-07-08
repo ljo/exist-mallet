@@ -101,6 +101,8 @@ let $config :=
     <parameters>
         <param name="stopwords" value="true"/>
         <param name="language" value="sv"/>
+        <param name="useStored" value="true"/>
+        <param name="showWordLists" value="true"/>
 </parameters>
 let $created := if ($create-instances-p) then 
     switch ($call-type)
