@@ -1,5 +1,6 @@
 package org.exist.xquery.mallet.topicmodeling;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.logging.Level;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.TreeSet;
 import java.util.regex.*;
@@ -366,7 +368,7 @@ public class TopicModel extends BasicFunction {
                     throw new XPathException("Instances path does not point to a binary resource");
                 }
                 BinaryDocument binaryDocument = (BinaryDocument) doc;
-                File instancesFile = context.getBroker().getBinaryFile(binaryDocument);
+                File instancesFile = context.getBroker().getBinaryFile(binaryDocument).toFile();
                 if (dataDir == null) {
                     dataDir = instancesFile.getParentFile();
                 }
@@ -397,7 +399,7 @@ public class TopicModel extends BasicFunction {
                     throw new XPathException("Inferencer path does not point to a binary resource");
                 }
                 BinaryDocument binaryDocument = (BinaryDocument)doc;
-                File inferencerFile = context.getBroker().getBinaryFile(binaryDocument);
+                File inferencerFile = context.getBroker().getBinaryFile(binaryDocument).toFile();
                 if (dataDir == null) {
                     dataDir = inferencerFile.getParentFile();
                 }
@@ -432,7 +434,7 @@ public class TopicModel extends BasicFunction {
                     throw new XPathException("TopicModel path does not point to a binary resource");
                 }
                 BinaryDocument binaryDocument = (BinaryDocument)doc;
-                File topicModelFile = context.getBroker().getBinaryFile(binaryDocument);
+                File topicModelFile = context.getBroker().getBinaryFile(binaryDocument).toFile();
                 if (dataDir == null) {
                     dataDir = topicModelFile.getParentFile();
                 }
@@ -456,17 +458,15 @@ public class TopicModel extends BasicFunction {
         XmldbURI docURI = sourcePath.lastSegment();
         // References to the database
         BrokerPool brokerPool = context.getBroker().getBrokerPool();
-        DBBroker broker = null;
         final org.exist.security.SecurityManager sm = brokerPool.getSecurityManager();
         Collection collection = null;
+	VirtualTempFile vtf = null;
 
         // Start transaction
         TransactionManager txnManager = brokerPool.getTransactionManager();
-        Txn txn = txnManager.beginTransaction();
-        
-        try {
-            broker = brokerPool.get(sm.getCurrentSubject());
-        
+	try (final DBBroker broker = brokerPool.get(Optional.ofNullable(sm.getCurrentSubject()));
+	     final Txn txn = txnManager.beginTransaction()) {
+
             collection = broker.openCollection(colURI, Lock.WRITE_LOCK);
             if (collection == null) {
                 String errorMessage = String.format("Collection %s does not exist", colURI);
@@ -481,27 +481,27 @@ public class TopicModel extends BasicFunction {
             File topicModelTempFile = File.createTempFile("malletTopicModel", ".tmp");
             topicModelTempFile.deleteOnExit();
             model.write(topicModelTempFile);
-            VirtualTempFile vtf = new VirtualTempFile(topicModelTempFile);
-            InputStream bis = vtf.getByteStream();
-            
-            try {
+            vtf = new VirtualTempFile(topicModelTempFile);
+            try(final InputStream fis = vtf.getByteStream();
+		final InputStream bis = new BufferedInputStream(fis)) {
                 DocumentImpl doc = collection.addBinaryResource(txn, broker, docURI, bis, MimeType.BINARY_TYPE.getName(), vtf.length());
-            } finally {
-                bis.close();
             }
+	    vtf.close();
+
             // Commit change
             txnManager.commit(txn);
             
         } catch (Throwable ex) {
-            txnManager.abort(txn);
             throw new XPathException(this, String.format("Unable to write instances document into database: %s", ex.getMessage()));
 
         } finally {
+	    if (vtf != null) {
+                vtf.delete();
+            }
+
             if (collection != null) {
                 collection.release(Lock.WRITE_LOCK);
             }
-            txnManager.close(txn);
-            brokerPool.release(broker);
         }
     }
 

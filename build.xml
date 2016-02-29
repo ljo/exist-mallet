@@ -14,6 +14,7 @@
   <property name="project.lib.jar" value="mallet-${project.lib.version}.jar"/>
   <property name="project.lib.dependencies.jar" value="mallet-${project.lib.version}-deps.jar"/>
   <property name="build" value="./build"/>
+  <property name="build.compiler" value="extJavac"/>
   <property name="java.src" value="java/src"/>
   <property name="java.classes" value="${build}/classes"/>
   <property name="java.libs" value="java/lib"/>

@@ -1,5 +1,6 @@
 package org.exist.xquery.mallet.topicmodeling;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.*;
 
@@ -138,7 +140,7 @@ public class CreateInstances extends BasicFunction {
 
     private static String instancesPath = null;
     private static File dataDir = null;
-    private static DocumentImpl doc = null;    
+    private static DocumentImpl doc = null;
 
     public CreateInstances(XQueryContext context, FunctionSignature signature) {
         super(context, signature);
@@ -351,17 +353,14 @@ public class CreateInstances extends BasicFunction {
         XmldbURI docURI = sourcePath.lastSegment();
         // References to the database
         BrokerPool brokerPool = context.getBroker().getBrokerPool();
-        DBBroker broker = null;
         final org.exist.security.SecurityManager sm = brokerPool.getSecurityManager();
         Collection collection = null;
-
+	VirtualTempFile vtf = null;
         // Start transaction
         TransactionManager txnManager = brokerPool.getTransactionManager();
-        Txn txn = txnManager.beginTransaction();
-        
-        try {
-            broker = brokerPool.get(sm.getCurrentSubject());
-        
+        try (final DBBroker broker = brokerPool.get(Optional.ofNullable(sm.getCurrentSubject()));
+	     final Txn txn = txnManager.beginTransaction()) {
+
             collection = broker.openCollection(colURI, Lock.WRITE_LOCK);
             if (collection == null) {
                 String errorMessage = String.format("Collection %s does not exist", colURI);
@@ -376,27 +375,26 @@ public class CreateInstances extends BasicFunction {
             File instancesTempFile = File.createTempFile("malletInstances", ".tmp");
             instancesTempFile.deleteOnExit();
             instances.save(instancesTempFile);
-            VirtualTempFile vtf = new VirtualTempFile(instancesTempFile);
-            InputStream bis = vtf.getByteStream();
-            
-            try {
+            vtf = new VirtualTempFile(instancesTempFile);
+            try(final InputStream fis = vtf.getByteStream();
+		final InputStream bis = new BufferedInputStream(fis)) {
                 doc = collection.addBinaryResource(txn, broker, docURI, bis, MimeType.BINARY_TYPE.getName(), vtf.length());
-            } finally {
-                bis.close();
             }
+	    vtf.close();
             // Commit change
             txnManager.commit(txn);
             
         } catch (Throwable ex) {
-            txnManager.abort(txn);
             throw new XPathException(this, String.format("Unable to write instances document into database: %s", ex.getMessage()));
 
         } finally {
+	    if (vtf != null) {
+                vtf.delete();
+            }
+
             if (collection != null) {
                 collection.release(Lock.WRITE_LOCK);
             }
-            txnManager.close(txn);
-            brokerPool.release(broker);
         }
     }
 
