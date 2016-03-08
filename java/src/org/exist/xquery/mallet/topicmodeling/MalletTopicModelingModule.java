@@ -27,7 +27,12 @@ public class MalletTopicModelingModule extends AbstractInternalModule {
         new FunctionDef(TopicModel.signatures[1], TopicModel.class),
         new FunctionDef(TopicModel.signatures[2], TopicModel.class),
         new FunctionDef(TopicModel.signatures[3], TopicModel.class),
-        new FunctionDef(TopicModel.signatures[4], TopicModel.class)
+        new FunctionDef(TopicModel.signatures[4], TopicModel.class),
+        new FunctionDef(PolylingualTopicModel.signatures[0], PolylingualTopicModel.class),
+        new FunctionDef(PolylingualTopicModel.signatures[1], PolylingualTopicModel.class),
+        new FunctionDef(PolylingualTopicModel.signatures[2], PolylingualTopicModel.class),
+        new FunctionDef(PolylingualTopicModel.signatures[3], PolylingualTopicModel.class),
+        new FunctionDef(PolylingualTopicModel.signatures[4], PolylingualTopicModel.class)
     };
 
     public MalletTopicModelingModule(Map<String, List<? extends Object>> parameters) {
