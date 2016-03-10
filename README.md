@@ -16,13 +16,15 @@ There are currently three main function groups:
 
 ### topics:create-instances-*
 Processes resources in the provided collection hierarchy and creates a serialized instances document which can be used by nearly all Mallet sub-packages. Returns the path to the stored instances document.
-The parameter $configuration gives the configuration, eg &lt;parameters&gt;&lt;param name='stopwords' value='false'/&gt;&lt;/parameters&gt;.
+The parameter $configuration gives the configuration, eg &lt;parameters&gt;&lt;param name='stopwords' value='false'/&gt;&lt;param name='langugage' value='en'/&gt;&lt;/parameters&gt;.  For polylingual you use the $collection-uris parameter with one or more URIs. If only one collection-uri is given, sub-collections for each language code are expected, otherwise one collection-uri for each of the languages in the same order are expected.
 
-topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri 
-as xs:anyURI, $qname as xs:QName?) as xs:string?
+topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri as xs:anyURI, $qname as xs:QName?) as xs:string?
 
-topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri 
-as xs:anyURI, $qname as xs:QName?, $configuration as element()) as xs:string?
+topics:create-instances-collection($instances-doc as xs:anyURI, $collection-uri as xs:anyURI, $qname as xs:QName?, $configuration as element()) as xs:string?
+
+topics:create-instances-collection-polylingual($instances-doc as xs:anyURI, $collection-uri as xs:anyURI, $qname as xs:QName?, $languages as xs:string+) as xs:string?
+
+topics:create-instances-collection-polylingual($instances-doc as xs:anyURI, $collection-uris as xs:anyURI+, $qname as xs:QName?, $languages as xs:string+, $configuration as element()) as xs:string+
 
 topics:create-instances-node($instances-doc as xs:anyURI, $node as node()+) as xs:string?
 
@@ -140,21 +142,24 @@ let $instances-path := $instances-doc-prefix || $instances-doc-suffix
 let $instances-path2 := $instances-doc-prefix || "2" || $instances-doc-suffix
 let $instances-path3 := $instances-doc-prefix || "3" || $instances-doc-suffix
 
-(: Mode 3 is still under development for PLTM :)
+(: Mode 3 specific instance creation is available for PLTM 
+   tm:create-instances-collection-polylingual($instance-uri, $collection-uris, xs:QName("tei:body"), $languages)
+   tm:create-instances-collection-polylingual($instance-uri, $collection-uris, xs:QName("tei:body"), $languages, $config)
+   If only one collection-uri is given, sub-collections for each language code are expected,
+   otherwise one collection-uri for each of the languages in the same order are expected.
+:)
 let $mode := 2
 let $call-type := ("string", "node", "collection")[$mode]
 let $instances-uri := xs:anyURI(($instances-path, $instances-path2, $instances-path3)[$mode])
 let $instances-uris := for $lang in $languages return xs:anyURI(concat(($instances-path, $instances-path2, $instances-path3)[$mode], ".", $lang))
 let $topic-model-uri := xs:anyURI(($instances-path || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix, $instances-path2 || $topic-model-doc-suffix)[$mode])
 
-(: Make sure you create an instance for the mode you use at least once. :)
+(: Make sure you create instances for the mode you use at least once. :)
 let $create-instances-p := true()
 (: Please note this is an example configuration. :)
 let $config := 
     <parameters>
         <param name="stopwords" value="true"/>
-        <param name="languages" value="sv"/>
-        <param name="languages" value="en"/>
         <param name="useStored" value="false"/>
         <param name="showWordLists" value="true"/>
     </parameters>
@@ -162,7 +167,7 @@ let $created := if ($create-instances-p) then
     switch ($call-type)
         case "string" return for $instance-uri at $pos in $instances-uris return tm:create-instances-string($instance-uri, ($text-sv, $text-en)[$pos], $config)
         case "node" return for $instance-uri at $pos in $instances-uris return tm:create-instances-node($instance-uri, $text2[$pos]/text, $config)
-        case "collection" return for $instance-uri at $pos in $instances-uris return tm:create-instances-collection($instance-uri, $text3[$pos], xs:QName("tei:body"), $config)
+        case "collection" return tm:create-instances-collection-polylingual($instance-uri, $text3, xs:QName("tei:body"), $languages, $config)
         default return for $instance-uri at $pos in $instances-uri return tm:create-instances-string($instance-uri, ($text-sv, $text-en)[$pos], $config)
     else ()
 return 

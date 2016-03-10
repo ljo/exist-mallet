@@ -13,6 +13,8 @@ import java.util.Properties;
 import java.util.regex.*;
 
 import org.apache.log4j.Logger;
+//import org.apache.logging.log4j.Logger;
+//import org.apache.logging.log4j.LogManager;
 
 import cc.mallet.pipe.*;
 import cc.mallet.pipe.iterator.*;
@@ -51,6 +53,7 @@ import org.w3c.dom.NodeList;
  */
 public class CreateInstances extends BasicFunction {
     private final static Logger LOG = Logger.getLogger(CreateInstances.class);
+    //private final static Logger LOG = LogManager.getLogger(CreateInstances.class);
 
     public final static FunctionSignature signatures[] = {
         new FunctionSignature(
@@ -135,11 +138,44 @@ public class CreateInstances extends BasicFunction {
                               },
                               new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
                                                              "The path to the stored instances document if successfully stored, otherwise the empty sequence.")      
+                              ),
+        new FunctionSignature(
+                              new QName("create-instances-collection-polylingual", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
+                              "Processes polylingual resources in the provided collection hierarchies and creates one serialized instances document per language which can be used by nearly all Mallet sub-packages. Returns the paths to the stored instances documents.",
+                              new SequenceType[] {
+                                  new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to where to store the serialized instances documents. The language suffix will be added"),
+                                  new FunctionParameterSequenceType("collection-uris", Type.ANY_URI, Cardinality.ONE_OR_MORE,
+                                                                    "The collection hierarchies to create the instances out of. If only one is given, sub-collections for each language code are expected, otherwise collection paths for each of the languages in the same order are expected"),
+                                  new FunctionParameterSequenceType("qname", Type.QNAME, Cardinality.ZERO_OR_ONE,
+                                                                    "The QName to restrict instance contents to, e. g. xs:QName(\"tei:body\")"),
+                                  new FunctionParameterSequenceType("languages", Type.STRING, Cardinality.ONE_OR_MORE,
+                                                                    "A sequence of lowercase two-letter ISO-639 codes")
+                              },
+                              new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
+                                                             "The paths to the stored instances documents if successfully stored, otherwise the empty sequence.")
+                              ),
+        new FunctionSignature(
+                              new QName("create-instances-collection-polylingual", MalletTopicModelingModule.NAMESPACE_URI, MalletTopicModelingModule.PREFIX),
+                              "Processes polylingual resources in the provided collection hierarchies and creates a serialized instances document per language which can be used by nearly all Mallet sub-packages. Returns the paths to the stored instances documents.",
+                              new SequenceType[] {
+                                  new FunctionParameterSequenceType("instances-doc", Type.ANY_URI, Cardinality.EXACTLY_ONE,
+                                                                    "The path within the database to where to store the serialized instances documents. The language suffix will be added"),
+                                  new FunctionParameterSequenceType("collection-uris", Type.ANY_URI, Cardinality.ONE_OR_MORE,
+                                                                    "The collection hierarchies to create the instances out of. If only one is given, sub-collections for each language code are expected, otherwise collection paths for each of the languages in the same order are expected"),
+                                  new FunctionParameterSequenceType("qname", Type.QNAME, Cardinality.ZERO_OR_ONE,
+                                                                    "The QName to restrict instance contents to, e. g. xs:QName(\"tei:body\")"),
+                                  new FunctionParameterSequenceType("languages", Type.STRING, Cardinality.ONE_OR_MORE,
+                                                                    "A sequence of lowercase two-letter ISO-639 codes"),
+                                  new FunctionParameterSequenceType("configuration", Type.ELEMENT, Cardinality.EXACTLY_ONE,
+                                                                    "The configuration, eg &lt;parameters&gt;&lt;param name='stopwords' value='false'/&gt;&lt;/parameters&gt;.")
+                              },
+                              new FunctionReturnSequenceType(Type.STRING, Cardinality.ZERO_OR_ONE,
+                                                             "The paths to the stored instances documents if successfully stored, otherwise the empty sequence.")
                               )
     };
 
     private static String instancesPath = null;
-    private static File dataDir = null;
     private static DocumentImpl doc = null;
 
     public CreateInstances(XQueryContext context, FunctionSignature signature) {
@@ -153,6 +189,8 @@ public class CreateInstances extends BasicFunction {
         String stopWordsPath = null;
         Boolean useStopWords = false;
         String language = "en";
+        List<String> languages = new ArrayList<String>();
+        List<String> langCollections = new ArrayList<String>();
         String tokenRegex = "[\\p{L}\\p{N}_-]+";
         QName qname = null; //new QName("body", "http://www.tei-c.org/ns/1.0", "tei");
         //java.util.logging.config.level=SEVERE
@@ -168,6 +206,10 @@ public class CreateInstances extends BasicFunction {
             if (!args[3].isEmpty()) {
                 parameters = ModuleUtils.parseParameters(((NodeValue)args[3].itemAt(0)).getNode());
             }
+        } else if (isCalledAs("create-instances-collection-polylingual") && getSignature().getArgumentCount() == 5) {
+            if (!args[4].isEmpty()) {
+                parameters = ModuleUtils.parseParameters(((NodeValue)args[4].itemAt(0)).getNode());
+	    }
         } else if ((isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) && getSignature().getArgumentCount() == 3) {
             if (!args[2].isEmpty()) {
                 parameters = ModuleUtils.parseParameters(((NodeValue)args[2].itemAt(0)).getNode());
@@ -187,22 +229,42 @@ public class CreateInstances extends BasicFunction {
             }
         }
 
+	ValueSequence result = new ValueSequence();
         try {
             if (isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) {
-
                 createInstances(createPipe(tokenRegex, useStopWords, language), getParameterValues(args[1]).toArray(new String[0]));
-            } else {
+            } else { // -collection-
                 if (!args[2].isEmpty()) {
                     qname = ((QNameValue) args[2]).getQName();
                 }
-                createInstancesCollection(createPipe(tokenRegex, useStopWords, language), args[1].getStringValue(), qname);
+
+                if (languages.size() == 0 && !args[3].isEmpty()) {
+		    languages = CreateInstances.getParameterValues(args[3]);
+		    language = languages.get(0);
+                }
+		if (languages.size() == 0) {
+		    createInstancesCollection(createPipe(tokenRegex, useStopWords, language), args[1].getStringValue(), qname, false, "");
+		    result.add(new StringValue(instancesPath));
+		} else {
+		    boolean appendLangCollection = false;
+		    langCollections = CreateInstances.getParameterValues(args[1]);
+		    LOG.info("langCollections: " + langCollections.size() + " languages: " + languages.size());
+		    if (langCollections.size() == 1 && languages.size() > 1) {
+			appendLangCollection = true;
+		    }
+		    int i = 0;
+		    for (String lang : languages) {
+			doc = null;
+			createInstancesCollection(createPipe(tokenRegex, useStopWords, lang), appendLangCollection ? langCollections.get(0) : langCollections.get(i), qname, appendLangCollection, lang);
+			if (doc != null) {
+			    result.add(new StringValue(instancesPath + "." + lang));
+			}
+			i++;
+		    }
+		}
             }
-            if (doc == null) {
-                return Sequence.EMPTY_SEQUENCE;
-            } else {
-                return new StringValue(instancesPath);
-            }
-            
+	    return result;
+
         } catch (IllegalArgumentException ex) {
             String errorMessage = String.format("Unable to convert to instances. %s", ex.getMessage());
             LOG.error(errorMessage, ex);
@@ -270,15 +332,25 @@ public class CreateInstances extends BasicFunction {
         instances.addThruPipe(iterator);
         // and store it.
         LOG.debug("Storing instances.");
-        storeInstances(instances);
+        storeInstances(instances, "");
     }
 
-    private void createInstancesCollection(Pipe pipe, String collection, final QName qname)  throws XPathException {
+    private void createInstancesCollection(Pipe pipe, String collection, final QName qname, final boolean appendLangCollection, final String language)  throws XPathException {
         DocumentSet docs = null;
         XmldbURI uri = null;
         try {
             MutableDocumentSet ndocs = new DefaultDocumentSet();
             uri = new AnyURIValue(collection).toXmldbURI();
+	    if (appendLangCollection) {
+		uri = uri.append(language);
+		LOG.info("Scanning sub-collection for language: (" + language + ") " + uri.toString());
+	    } else {
+		if ("".equals(language)) {
+		    LOG.info("Scanning monolingual collection: " + uri.toString());
+		} else {
+		    LOG.info("Scanning collection for language: (" + language + ") " + uri.toString());
+		}
+	    }
             final Collection coll = context.getBroker().getCollection(uri);
             if (coll == null) {
                 if (context.isRaiseErrorOnFailedRetrieval()) {
@@ -335,7 +407,7 @@ public class CreateInstances extends BasicFunction {
         
         // The third argument is a Pattern that is applied to produce a class label.
         // In this case it could be the last collection name in the path.
-        String target = uri.toString(); 
+        String target = uri.toString();
         ArrayIterator iterator =
             new ArrayIterator(result, target);
 
@@ -344,11 +416,18 @@ public class CreateInstances extends BasicFunction {
         // Process each instance provided by the iterator
         instances.addThruPipe(iterator);
         // and store it.
-        storeInstances(instances);
+	if ("".equals(language)) {
+	    LOG.info("Storing instances for monolingual collection");
+	} else {
+	    LOG.info("Storing instances for polylingual language collection: " + language);
+
+	}
+        storeInstances(instances, language);
     }
 
-    private void storeInstances(final InstanceList instances)  throws XPathException {
-        XmldbURI sourcePath = XmldbURI.createInternal(instancesPath);
+    private void storeInstances(final InstanceList instances, final String language)  throws XPathException {
+	final String langInstancesPath = "".equals(language) ? instancesPath : instancesPath  + "." + language;
+        XmldbURI sourcePath = XmldbURI.createInternal(langInstancesPath);
         XmldbURI colURI = sourcePath.removeLastSegment();
         XmldbURI docURI = sourcePath.lastSegment();
         // References to the database
