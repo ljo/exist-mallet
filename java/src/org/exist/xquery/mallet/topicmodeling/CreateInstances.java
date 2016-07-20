@@ -38,10 +38,10 @@ import org.exist.storage.txn.TransactionManager;
 import org.exist.storage.txn.Txn;
 import org.exist.util.LockException;
 import org.exist.util.MimeType;
+import org.exist.util.ParametersExtractor;
 import org.exist.util.VirtualTempFile;
 import org.exist.xmldb.XmldbURI;
 import org.exist.xquery.*;
-import org.exist.xquery.modules.ModuleUtils;
 import org.exist.xquery.value.*;
 
 import org.w3c.dom.NodeList;
@@ -204,15 +204,15 @@ public class CreateInstances extends BasicFunction {
 
         if (isCalledAs("create-instances-collection") && getSignature().getArgumentCount() == 4) {
             if (!args[3].isEmpty()) {
-                parameters = ModuleUtils.parseParameters(((NodeValue)args[3].itemAt(0)).getNode());
+                parameters = ParametersExtractor.parseParameters(((NodeValue)args[3].itemAt(0)).getNode());
             }
         } else if (isCalledAs("create-instances-collection-polylingual") && getSignature().getArgumentCount() == 5) {
             if (!args[4].isEmpty()) {
-                parameters = ModuleUtils.parseParameters(((NodeValue)args[4].itemAt(0)).getNode());
+                parameters = ParametersExtractor.parseParameters(((NodeValue)args[4].itemAt(0)).getNode());
 	    }
         } else if ((isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) && getSignature().getArgumentCount() == 3) {
             if (!args[2].isEmpty()) {
-                parameters = ModuleUtils.parseParameters(((NodeValue)args[2].itemAt(0)).getNode());
+                parameters = ParametersExtractor.parseParameters(((NodeValue)args[2].itemAt(0)).getNode());
             }
         }
         
@@ -229,7 +229,7 @@ public class CreateInstances extends BasicFunction {
             }
         }
 
-	ValueSequence result = new ValueSequence();
+	final ValueSequence result = new ValueSequence();
         try {
             if (isCalledAs("create-instances-string") || isCalledAs("create-instances-node")) {
                 createInstances(createPipe(tokenRegex, useStopWords, language), getParameterValues(args[1]).toArray(new String[0]));
@@ -358,7 +358,7 @@ public class CreateInstances extends BasicFunction {
                 }
             } else {
                 if (context.inProtectedMode())
-                    {context.getProtectedDocs().getDocsByCollection(coll, true, ndocs);}
+                    {context.getProtectedDocs().getDocsByCollection(coll, ndocs);}
                 else
                     {coll.allDocs(context.getBroker(), ndocs,
                                   true, context.getProtectedDocs());}
