@@ -34,6 +34,7 @@ import org.exist.security.PermissionDeniedException;
 import org.exist.storage.BrokerPool;
 import org.exist.storage.DBBroker;
 import org.exist.storage.lock.Lock;
+import org.exist.storage.lock.Lock.LockMode;
 import org.exist.storage.txn.TransactionManager;
 import org.exist.storage.txn.Txn;
 import org.exist.util.LockException;
@@ -380,7 +381,7 @@ public class CreateInstances extends BasicFunction {
             boolean lockAcquired = false;
             try {
                 if (!context.inProtectedMode() && !dlock.hasLock()) {
-                    dlock.acquire(Lock.READ_LOCK);
+                    dlock.acquire(LockMode.READ_LOCK);
                     lockAcquired = true;
                 }
                 DocumentImpl docImpl = new NodeProxy(doc).getOwnerDocument();
@@ -401,7 +402,7 @@ public class CreateInstances extends BasicFunction {
                 throw new XPathException(e.getMessage());
             } finally {
                 if (lockAcquired)
-                    {dlock.release(Lock.READ_LOCK);}
+                    {dlock.release(LockMode.READ_LOCK);}
             }
         }
         
@@ -440,7 +441,7 @@ public class CreateInstances extends BasicFunction {
         try (final DBBroker broker = brokerPool.get(Optional.ofNullable(sm.getCurrentSubject()));
 	     final Txn txn = txnManager.beginTransaction()) {
 
-            collection = broker.openCollection(colURI, Lock.WRITE_LOCK);
+            collection = broker.openCollection(colURI, LockMode.WRITE_LOCK);
             if (collection == null) {
                 String errorMessage = String.format("Collection %s does not exist", colURI);
                 LOG.error(errorMessage);
@@ -472,7 +473,7 @@ public class CreateInstances extends BasicFunction {
             }
 
             if (collection != null) {
-                collection.release(Lock.WRITE_LOCK);
+                collection.release(LockMode.WRITE_LOCK);
             }
         }
     }

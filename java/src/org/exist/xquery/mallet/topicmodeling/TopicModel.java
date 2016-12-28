@@ -18,7 +18,8 @@ import java.util.Properties;
 import java.util.TreeSet;
 import java.util.regex.*;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import cc.mallet.pipe.*;
 import cc.mallet.pipe.iterator.*;
@@ -39,7 +40,7 @@ import org.exist.dom.memtree.NodeImpl;
 import org.exist.security.PermissionDeniedException;
 import org.exist.storage.BrokerPool;
 import org.exist.storage.DBBroker;
-import org.exist.storage.lock.Lock;
+import org.exist.storage.lock.Lock.LockMode;
 import org.exist.storage.txn.TransactionManager;
 import org.exist.storage.txn.Txn;
 import org.exist.util.MimeType;
@@ -50,12 +51,12 @@ import org.exist.xquery.value.*;
 import org.xml.sax.SAXException;
 
 /**
- * Create Instances functions to be used by most module functions of the Mallet sub-packages.
+ * Mallet LDA tm.
  *
  * @author ljo
  */
 public class TopicModel extends BasicFunction {
-    private final static Logger LOG = Logger.getLogger(TopicModel.class);
+    private final static Logger LOG = LogManager.getLogger(TopicModel.class);
 
     public final static FunctionSignature signatures[] = {
         new FunctionSignature(
@@ -467,7 +468,7 @@ public class TopicModel extends BasicFunction {
 	try (final DBBroker broker = brokerPool.get(Optional.ofNullable(sm.getCurrentSubject()));
 	     final Txn txn = txnManager.beginTransaction()) {
 
-            collection = broker.openCollection(colURI, Lock.WRITE_LOCK);
+            collection = broker.openCollection(colURI, LockMode.WRITE_LOCK);
             if (collection == null) {
                 String errorMessage = String.format("Collection %s does not exist", colURI);
                 LOG.error(errorMessage);
@@ -500,7 +501,7 @@ public class TopicModel extends BasicFunction {
             }
 
             if (collection != null) {
-                collection.release(Lock.WRITE_LOCK);
+                collection.release(LockMode.WRITE_LOCK);
             }
         }
     }
